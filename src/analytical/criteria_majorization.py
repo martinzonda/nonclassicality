@@ -11,12 +11,16 @@ from collections import Counter
 # Precomputed generalized Klyshko / majorization pairs for consecutive
 # indices indx = [0, 1, ..., N_P - 1]. File genKlyshko_up_toM.pkl contains
 # the pairs for N_P = M + 1, so list_of_files[N_P - 4] is the matching file.
-list_of_files = ["all_genK/genKlyshko_up_to3.pkl",
-                 "all_genK/genKlyshko_up_to4.pkl",
-                 "all_genK/genKlyshko_up_to5.pkl",
-                 "all_genK/genKlyshko_up_to6.pkl",
-                 "all_genK/genKlyshko_up_to7.pkl",
-                 "all_genK/genKlyshko_up_to8.pkl"]
+# Paths are resolved relative to the repository root (this file lives in
+# src/analytical/), so loading works regardless of the current directory.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_GENK_DIR = os.path.join(_REPO_ROOT, "data", "all_genK")
+list_of_files = [os.path.join(_GENK_DIR, "genKlyshko_up_to3.pkl"),
+                 os.path.join(_GENK_DIR, "genKlyshko_up_to4.pkl"),
+                 os.path.join(_GENK_DIR, "genKlyshko_up_to5.pkl"),
+                 os.path.join(_GENK_DIR, "genKlyshko_up_to6.pkl"),
+                 os.path.join(_GENK_DIR, "genKlyshko_up_to7.pkl"),
+                 os.path.join(_GENK_DIR, "genKlyshko_up_to8.pkl")]
 
 
 def load_precomputed_pairs(indx, lof=list_of_files):
