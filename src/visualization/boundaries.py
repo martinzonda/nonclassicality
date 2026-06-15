@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from src.config import VIZ
+
 # Contour level separating the classical (0) and nonclassical (1) regions.
-_BOUNDARY_LEVEL = 0.5
+_BOUNDARY_LEVEL = VIZ.boundary_level
 
 
 def extract_binary_boundary(

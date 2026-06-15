@@ -1,0 +1,62 @@
+# Optional configuration overrides for the nonclassicality package.
+#
+# Any key omitted here keeps the default defined in src/config.py. Only the
+# keys you set are applied, so this file may be partial. Point the package at a
+# different file with the NONCLASSICALITY_CONFIG environment variable.
+#
+# The values below are shown commented out at their built-in defaults; edit and
+# uncomment to override.
+
+# Global random seed (used by stochastic methods).
+# seed: null
+
+# LP cutting-plane solver (src.solvers.lp_solver).
+# solver:
+#   tol: 1.0e-10          # convergence tolerance on the cut violation
+#   max_iter: 100         # maximum cutting-plane iterations
+#   imtol: 1.0e-9         # imaginary-part tolerance for real roots
+#   row_tol: 1.0e-12      # relative tolerance for redundant cuts/rows
+#   zero_row_atol: 1.0e-14
+#   lambda_lower: -1.0
+#   lambda_upper: 1.0
+#   mu_init: [0.0]
+
+# Nelder-Mead solver (src.solvers.minimize_solver).
+# minimize:
+#   bias: 1.0e-7          # minimum witness value to flag nonclassicality
+#   tol: 1.0e-7           # optimizer tolerance
+#   lambda_lower: -1.0
+#   lambda_upper: 1.0
+#   seed: null            # RNG seed for random starting points
+
+# 2D parameter scan (src.comparison.scan_2d.run2D).
+# scan:
+#   n0: 512
+#   n1: 512
+#   tol: 1.0e-10
+#   bias: 1.0e-8
+#   max_iter: 300
+#   imtol: 1.0e-8
+#   lambda_lower: -1.0
+#   lambda_upper: 1.0
+#   dPA: 0.0
+#   uPA: 1.0
+#   dPB: 0.0
+#   uPB: 0.4
+#   prest: [0.05, 0.05]
+
+# Visualization (src.visualization).
+# viz:
+#   boundary_level: 0.5
+
+# BLAS / OpenMP thread limits (applied via config.apply_thread_limits()).
+# threads:
+#   omp: 4
+#   openblas: 4
+#   mkl: 4
+#   veclib: 4
+#   numexpr: 4
+
+# Filesystem paths (resolved relative to repo_root unless overridden).
+# paths:
+#   file_index_offset: 4

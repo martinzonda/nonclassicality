@@ -28,12 +28,14 @@ from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import linprog, minimize_scalar, OptimizeResult
 from numpy.polynomial.polynomial import polyroots, polyval, polytrim
 
+from src.config import SOLVER
+
 logger = logging.getLogger(__name__)
 
 # Magnitude below which a Poisson row vector is treated as numerically zero,
 # i.e. indistinguishable from the t >= 0 constraint already in the master LP.
 # Intrinsic to the solver formulation, not a user-facing tolerance.
-_ZERO_ROW_ATOL = 1e-14
+_ZERO_ROW_ATOL = SOLVER.zero_row_atol
 
 Bounds = Sequence[tuple[float | None, float | None]]
 
@@ -70,7 +72,7 @@ def is_redundant_cut(
     mu_list: Sequence[float],
     indx: ArrayLike,
     fact: ArrayLike,
-    row_tol: float = 1e-12,
+    row_tol: float = SOLVER.row_tol,
 ) -> bool:
     """Test whether a candidate cut duplicates an existing one.
 
@@ -115,7 +117,7 @@ def is_redundant_cut(
 def prune_duplicate_rows(
     A_ub: ArrayLike,
     b_ub: ArrayLike,
-    row_tol: float = 1e-12,
+    row_tol: float = SOLVER.row_tol,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Drop rows of ``A_ub`` that duplicate an earlier row.
 
@@ -305,7 +307,7 @@ def max_inner_value(
     indx: ArrayLike,
     lam: ArrayLike,
     fact: ArrayLike,
-    imtol: float = 1e-9,
+    imtol: float = SOLVER.imtol,
 ) -> tuple[float, float]:
     r"""Supremum of :math:`\boldsymbol\lambda\cdot\mathbf p(\mu)` over ``mu >= 0``.
 
@@ -441,7 +443,7 @@ def true_objective(
     indx: ArrayLike,
     fact: ArrayLike,
     lam: ArrayLike,
-    imtol: float = 1e-9,
+    imtol: float = SOLVER.imtol,
 ) -> tuple[float, float, float]:
     r"""Evaluate the witness objective for a fixed coefficient vector.
 
@@ -483,10 +485,10 @@ def solve_semi_infinite_lp(
     indx: ArrayLike,
     fact: ArrayLike,
     bounds: Bounds,
-    mu_init: Sequence[float] = (0.0,),
-    tol: float = 1e-10,
-    max_iter: int = 100,
-    imtol: float = 1e-9,
+    mu_init: Sequence[float] = SOLVER.mu_init,
+    tol: float = SOLVER.tol,
+    max_iter: int = SOLVER.max_iter,
+    imtol: float = SOLVER.imtol,
     lp_failed_continue: bool = False,
 ) -> dict:
     r"""Solve the semi-infinite witness LP by a cutting-plane method.
@@ -563,7 +565,7 @@ def solve_semi_infinite_lp(
             }
 
         # Add the new cut unless it is numerically redundant.
-        if not is_redundant_cut(mu_star, mu_list, indx, fact, row_tol=1e-12):
+        if not is_redundant_cut(mu_star, mu_list, indx, fact, row_tol=SOLVER.row_tol):
             mu_list.append(float(mu_star))
         else:
             obj, worst_val_chk, mu_star_chk = true_objective(

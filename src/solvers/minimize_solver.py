@@ -36,12 +36,13 @@ from numpy.polynomial.polynomial import Polynomial
 from scipy.optimize import minimize
 from tqdm import tqdm
 
+from src.config import MINIMIZE
 from src.utils.numerics import inverse_factorials
 
 logger = logging.getLogger(__name__)
 
 # Default search box for the witness coefficients lambda.
-_LAMBDA_BOUND = (-1.0, 1.0)
+_LAMBDA_BOUND = MINIMIZE.lambda_bound
 
 
 def max_threshold_value(
@@ -125,7 +126,7 @@ def minimize_witness(
     init_b: ArrayLike,
     init_c: ArrayLike,
     bounds: Sequence[tuple[float, float]],
-    tol: float = 1e-6,
+    tol: float = MINIMIZE.tol,
 ) -> tuple[float, NDArray[np.float64]]:
     """Maximize the witness via Nelder-Mead from up to three starting points.
 
@@ -187,7 +188,7 @@ def minimize_witness_fixed(
     fact: ArrayLike,
     init_a: ArrayLike,
     bounds: Sequence[tuple[float, float]],
-    tol: float = 1e-6,
+    tol: float = MINIMIZE.tol,
     lam_fix: float = 1.0,
     i_fix: int = 0,
 ) -> tuple[float, NDArray[np.float64]]:
@@ -232,9 +233,9 @@ def scan_2d_minimize(
     nc_a: NDArray[np.bool_],
     NP: int,
     Pall: NDArray[np.float64],
-    bias: float = 1e-7,
-    tol: float = 1e-7,
-    seed: int | None = None,
+    bias: float = MINIMIZE.bias,
+    tol: float = MINIMIZE.tol,
+    seed: int | None = MINIMIZE.seed,
 ) -> tuple[NDArray[np.bool_], float, NDArray[np.float64], NDArray[np.float64]]:
     """Refine an analytical nonclassicality map with the minimize solver.
 
@@ -320,9 +321,9 @@ def scan_2d_minimize_fixed(
     nc_a: NDArray[np.bool_],
     NP: int,
     Pall: NDArray[np.float64],
-    bias: float = 1e-7,
-    tol: float = 1e-7,
-    seed: int | None = None,
+    bias: float = MINIMIZE.bias,
+    tol: float = MINIMIZE.tol,
+    seed: int | None = MINIMIZE.seed,
 ) -> tuple[NDArray[np.bool_], float, NDArray[np.float64], NDArray[np.float64]]:
     """Refine an analytical map with the pinned-coefficient minimize solver.
 

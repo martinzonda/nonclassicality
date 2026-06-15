@@ -31,23 +31,16 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy.special import factorial
 
+from src.config import PATHS
+
 logger = logging.getLogger(__name__)
 
 # Precomputed generalized Klyshko / majorization pairs for consecutive
 # indices indx = [0, 1, ..., N_P - 1]. File genKlyshko_up_toM.pkl contains
-# the pairs for N_P = M + 1, so list_of_files[N_P - 4] is the matching file.
-# Paths are resolved relative to the repository root (this file lives in
-# src/analytical/), so loading works regardless of the current directory.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_GENK_DIR = os.path.join(_REPO_ROOT, "data", "all_genK")
-# Offset between N_P and the index into ``list_of_files`` (up_to3 -> N_P = 4).
-_FILE_INDEX_OFFSET = 4
-list_of_files = [os.path.join(_GENK_DIR, "genKlyshko_up_to3.pkl"),
-                 os.path.join(_GENK_DIR, "genKlyshko_up_to4.pkl"),
-                 os.path.join(_GENK_DIR, "genKlyshko_up_to5.pkl"),
-                 os.path.join(_GENK_DIR, "genKlyshko_up_to6.pkl"),
-                 os.path.join(_GENK_DIR, "genKlyshko_up_to7.pkl"),
-                 os.path.join(_GENK_DIR, "genKlyshko_up_to8.pkl")]
+# the pairs for N_P = M + 1, so list_of_files[N_P - offset] is the matching
+# file. Paths and the offset come from the central configuration.
+_FILE_INDEX_OFFSET = PATHS.file_index_offset
+list_of_files = PATHS.genk_files
 
 
 def load_precomputed_pairs(

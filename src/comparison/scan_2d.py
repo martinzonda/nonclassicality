@@ -19,29 +19,30 @@ from src.solvers.lp_solver import max_inner_value, solve_semi_infinite_lp
 from src.analytical.criteria_k import analytical_k
 from src.analytical.criteria_majorization import analytical_m
 from src.visualization.boundaries import extract_binary_boundary
+from src.config import SCAN
 from src.utils.numerics import inverse_factorials
 from src.utils.io import save_arrays
 
 logger = logging.getLogger(__name__)
 
 # Default per-component bounds on the witness coefficients lambda.
-_LAMBDA_BOUND = (-1.0, 1.0)
+_LAMBDA_BOUND = SCAN.lambda_bound
 
 
 def run2D(
-    N0: int = 512,
-    N1: int = 512,
+    N0: int = SCAN.n0,
+    N1: int = SCAN.n1,
     indx: ArrayLike | None = None,
-    dPA: float = 0.0,
-    uPA: float = 1.0,
-    dPB: float = 0.0,
-    uPB: float = 0.4,
+    dPA: float = SCAN.dPA,
+    uPA: float = SCAN.uPA,
+    dPB: float = SCAN.dPB,
+    uPB: float = SCAN.uPB,
     Prest: ArrayLike | None = None,
     fi: str = "aux.npy",
-    tol: float = 1e-10,
-    bias: float = 1e-8,
-    max_iter: int = 300,
-    imtol: float = 1e-8,
+    tol: float = SCAN.tol,
+    bias: float = SCAN.bias,
+    max_iter: int = SCAN.max_iter,
+    imtol: float = SCAN.imtol,
 ) -> tuple[list, list, list, list]:
     r"""Scan a 2D probability grid and compare numerical and analytical maps.
 
@@ -89,7 +90,7 @@ def run2D(
         indx = np.array([0, 1, 2, 3], dtype=np.int16)
     indx = np.asarray(indx)
     if Prest is None:
-        Prest = np.array([0.05, 0.05])
+        Prest = np.array(SCAN.prest)
     Prest = np.asarray(Prest, dtype=float)
 
     N_P = len(indx)
