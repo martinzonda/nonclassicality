@@ -1,15 +1,12 @@
-r"""Physical photon-statistics models used as test inputs.
+r"""QuTiP density-matrix photon-statistics models used as test inputs.
 
-Two families of models are provided:
+QuTiP density-matrix generators for thermal, coherent and photon-(boson-)added
+states, and helpers to read off their photon-number probabilities.
 
-- :func:`Pjaycum` -- analytical photon-number probabilities of the
-  Jaynes-Cummings model (no QuTiP dependency).
-- QuTiP density-matrix generators for thermal, coherent and photon-(boson-)
-  added states, and helpers to read off their photon-number probabilities.
-
-QuTiP is only required for the density-matrix generators; it is declared as an
-optional extra (``pip install .[physics]``). Importing this module without
-QuTiP installed will fail at the ``import qutip`` line below.
+QuTiP is required for this module; it is declared as an optional extra
+(``pip install .[physics]``). Importing this module without QuTiP installed
+will fail at the ``import qutip`` line below. The QuTiP-free Jaynes-Cummings
+model lives in :mod:`src.analytical.jaynes_cummings`.
 
 NOTE: function names follow the original research code (domain conventions);
 their meaning is documented in the docstrings.
@@ -23,42 +20,9 @@ from scipy.special import factorial
 
 import qutip as qt
 
-
-def Pjaycum(
-    n: int,
-    nu: ArrayLike,
-    tau: ArrayLike,
-    pe: float,
-) -> NDArray[np.float64]:
-    r"""Jaynes-Cummings photon-number probability :math:`P_n(\nu, \tau)`.
-
-    Analytical occupation of Fock level ``n`` for a thermal field of mean
-    photon number ``nu`` interacting with a two-level atom (excited-state
-    probability ``pe``) for scaled time ``tau``.
-
-    Parameters
-    ----------
-    n : int
-        Photon number (Fock level).
-    nu : array_like
-        Mean photon number :math:`\bar n` of the thermal field.
-    tau : array_like
-        Scaled interaction time :math:`\tau = g t`.
-    pe : float
-        Initial excited-state probability of the atom, in ``[0, 1]``.
-
-    Returns
-    -------
-    numpy.ndarray
-        :math:`P_n` broadcast over ``nu`` and ``tau``.
-    """
-    nuf1 = nu**n / (1 + nu)**(1 + n)
-    nuf2 = (1 + nu) / nu
-    nuf3 = nu / (1 + nu)
-    resA = (np.cos(tau * np.sqrt(n + 1)))**2 + nuf2 * (np.sin(tau * np.sqrt(n)))**2
-    resB = (np.cos(tau * np.sqrt(n)))**2 + nuf3 * (np.sin(tau * np.sqrt(n + 1)))**2
-    res = nuf1 * (pe * resA + (1.0 - pe) * resB)
-    return res
+# Re-exported for backwards compatibility; the canonical home is
+# src.analytical.jaynes_cummings (no QuTiP dependency).
+from src.analytical.jaynes_cummings import Pjaycum  # noqa: F401
 
 
 # Truncated Fock-space dimension and annihilation operator. NOTE: the module

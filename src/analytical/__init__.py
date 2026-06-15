@@ -7,6 +7,7 @@
 """
 
 from src.analytical.criteria_k import analytical_k, pN_0fun
+from src.analytical.jaynes_cummings import Pjaycum
 from src.analytical.criteria_majorization import (
     analytical_m,
     all_pairs_for_list_of_P,
@@ -18,6 +19,7 @@ from src.analytical.criteria_majorization import (
 __all__ = [
     "analytical_k",
     "pN_0fun",
+    "Pjaycum",
     "analytical_m",
     "all_pairs_for_list_of_P",
     "load_precomputed_pairs",
