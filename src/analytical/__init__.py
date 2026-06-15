@@ -11,6 +11,8 @@ from src.analytical.criteria_majorization import (
     analytical_m,
     all_pairs_for_list_of_P,
     load_precomputed_pairs,
+    build_reverse_index,
+    nonclass_from_pairs,
 )
 
 __all__ = [
@@ -19,4 +21,6 @@ __all__ = [
     "analytical_m",
     "all_pairs_for_list_of_P",
     "load_precomputed_pairs",
+    "build_reverse_index",
+    "nonclass_from_pairs",
 ]

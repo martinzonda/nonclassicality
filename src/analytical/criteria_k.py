@@ -1,19 +1,51 @@
+"""Analytical nonclassicality criteria (the "K" family).
+
+Provides :func:`analytical_k`, a batch evaluation of several easy-to-compute
+nonclassicality criteria over a grid of photon-number distributions: the
+:math:`W_{01}` rule, the three-index Klyshko inequalities, the
+:math:`P_n` vs ``pN_0fun`` bound, and the generalized Klyshko bound.
+"""
+
+from __future__ import annotations
+
 import numpy as np
 import scipy as sp
+from numpy.typing import ArrayLike, NDArray
 from scipy.special import factorial
-from math import gcd
-from functools import reduce
-from collections import Counter
 
-def pN_0fun(x,n):
-    xc=n+sp.special.lambertw(-np.exp(-n)*n)
-    Pxc=np.exp(-xc)
-    Cxc=xc**(n-1)*Pxc/factorial(n-1)
-    y=np.where(x<Pxc,x*(-np.log(x))**n/factorial(n),Cxc*(1-x))
+
+def pN_0fun(x: ArrayLike, n: int) -> NDArray[np.float64]:
+    r"""Classical boundary curve :math:`P_n^{(0)}(P_0)` used by a Klyshko bound.
+
+    Returns the largest classically attainable :math:`P_n` as a function of
+    :math:`P_0 = x`, built from the Lambert-W critical point :math:`x_c` and
+    the two regimes split at the critical probability
+    :math:`P_{x_c} = e^{-x_c}`.
+
+    Parameters
+    ----------
+    x : array_like
+        Vacuum probability :math:`P_0`, in ``[0, 1]``.
+    n : int
+        Photon number ``n``.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boundary value(s) ``P_n^{(0)}`` with the same shape as ``x``.
+    """
+    xc = n + sp.special.lambertw(-np.exp(-n) * n)
+    Pxc = np.exp(-xc)
+    Cxc = xc**(n - 1) * Pxc / factorial(n - 1)
+    y = np.where(x < Pxc, x * (-np.log(x))**n / factorial(n), Cxc * (1 - x))
     return y
 
 
-def analytical_k(Pall, fact, indx=None):
+def analytical_k(
+    Pall: ArrayLike,
+    fact: ArrayLike,
+    indx: ArrayLike | None = None,
+) -> tuple[NDArray[np.bool_], float]:
     """
     Analytical nonclassicality criteria for possibly non-consecutive
     probability indices.
