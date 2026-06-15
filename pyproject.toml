@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nonclassicality-lp"
+version = "0.1.0"
+description = "Nonclassicality detection of photon-number statistics via linear programming and analytical criteria."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Pavel Balaz", email = "pavel.balaz@pm.me" }]
+keywords = ["quantum optics", "nonclassicality", "linear programming", "Klyshko", "photon statistics"]
+
+dependencies = [
+    "numpy>=1.26,<2.0",
+    "scipy>=1.15",
+    "matplotlib>=3.8",
+    "tqdm>=4.66",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# Physical state generation (Jaynes-Cummings works without this).
+physics = ["qutip>=5.0"]
+# Development / testing / notebooks.
+dev = [
+    "pytest>=8.0",
+    "ipykernel>=6.29",
+    "nbconvert>=7.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Put the repo root on sys.path so `import src` works without installation.
+pythonpath = ["."]

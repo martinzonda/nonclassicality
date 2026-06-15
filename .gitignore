@@ -1,4 +1,28 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Environments / secrets
+.env
+.venv/
+venv/
+
+# Editor / tooling
 .claude/
+
+# Data: ignore everything under data/ (generated or large), except the
+# precomputed majorization-pair archives and the directory README. Regenerate
+# samples with examples/generate_sample_data.py.
+data/*
+!data/all_genK/
+!data/README.md
+
+# Results are generated outputs.
+results/
