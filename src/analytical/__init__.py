@@ -1,9 +1,10 @@
-"""Analytical nonclassicality criteria and physical photon-statistics models.
+"""Analytical nonclassicality criteria and maintained demo models.
 
 - ``criteria_k``            : analytical_k (W01, 3-index + generalized Klyshko)
 - ``criteria_majorization`` : analytical_m and majorization-pair machinery
 - ``criteria_classic``      : klyshko, taylored, log01rule, generalized_klyshko*
-- ``models``                : Pjaycum + QuTiP state generators (optional QuTiP)
+- ``jaynes_cummings``       : Pjaycum (QuTiP-free)
+- ``models``                : probabilistic boson-addition demo helpers
 """
 
 from src.analytical.criteria_k import analytical_k, pN_0fun

@@ -74,9 +74,9 @@ class ScanConfig:
     imtol: float = 1e-8           # imaginary-part tolerance for real roots
     lambda_lower: float = -1.0
     lambda_upper: float = 1.0
-    dPA: float = 0.0              # range of the first swept probability
+    dPA: float = 1e-10            # range of the first swept probability
     uPA: float = 1.0
-    dPB: float = 0.0              # range of the second swept probability
+    dPB: float = 1e-10            # range of the second swept probability
     uPB: float = 0.4
     prest: tuple[float, ...] = (0.05, 0.05)  # fixed remaining probabilities
 

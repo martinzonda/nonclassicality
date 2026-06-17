@@ -9,6 +9,7 @@ Examples
 --------
     python scripts/run_scan.py --n0 256 --n1 256 --out results/scan.npy
     python scripts/run_scan.py --indx 0 1 2 3 --upa 0.9 --upb 0.3
+    python scripts/run_scan.py --no-analytical-m --y-scan-direction decreasing
 """
 
 import argparse
@@ -19,9 +20,12 @@ import sys
 # Allow running directly without installing the package.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src.config import SCAN, PATHS, apply_thread_limits
+
+apply_thread_limits()
+
 import numpy as np
 
-from src.config import SCAN, PATHS
 from src.comparison.scan_2d import run2D
 
 
@@ -41,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", type=str,
                         default=os.path.join(PATHS.results_dir, "scan.npy"),
                         help="output .npy archive path")
+    parser.add_argument("--no-analytical-m", action="store_true",
+                        help="skip the expensive majorization criterion")
+    parser.add_argument("--y-scan-direction", choices=["increasing", "decreasing"],
+                        default="increasing",
+                        help="warm-start direction along the y/P_1 axis")
     return parser
 
 
@@ -57,6 +66,8 @@ def main(argv: list[str] | None = None) -> None:
         dPA=args.dpa, uPA=args.upa, dPB=args.dpb, uPB=args.upb,
         Prest=np.array(args.prest),
         fi=args.out,
+        use_analytical_m=not args.no_analytical_m,
+        y_scan_direction=args.y_scan_direction,
     )
     print(f"Saved scan to {args.out} ({len(boundaries)} LP boundary curves)")
 

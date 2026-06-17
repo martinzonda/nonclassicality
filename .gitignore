@@ -3,26 +3,42 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 dist/
 build/
 
 # Jupyter
 .ipynb_checkpoints/
 
+# Tests / caches
+.pytest_cache/
+
 # Environments / secrets
 .env
+.env.*
 .venv/
 venv/
+env/
 
 # Editor / tooling
+.agents/
 .claude/
+.codex/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# Data: ignore everything under data/ (generated or large), except the
-# precomputed majorization-pair archives and the directory README. Regenerate
-# samples with examples/generate_sample_data.py.
+# Data: keep tracked input datasets only.
 data/*
 !data/all_genK/
+!data/all_genK/*.pkl
 !data/README.md
 
 # Results are generated outputs.
-results/
+results/*
+!results/.gitkeep

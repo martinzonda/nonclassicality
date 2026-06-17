@@ -20,6 +20,7 @@ from src.analytical.criteria_classic import (
     generalized_klyshko,
 )
 from src.analytical.jaynes_cummings import Pjaycum
+from src.analytical.models import test_P_pba as pba_probability
 from src.utils.numerics import inverse_factorials
 
 
@@ -147,3 +148,11 @@ def test_pN_0fun_finite():
     x = np.linspace(0.01, 0.99, 50)
     y = pN_0fun(x, 2)
     assert np.all(np.isfinite(y))
+
+
+# --------------------------------------------------------------------------- models
+def test_test_P_pba_known_values():
+    probs = np.array([pba_probability(mu=0.5, p=0.3, l=1.0, k=k) for k in range(6)])
+    assert np.all(np.isfinite(probs))
+    assert np.all(probs >= 0.0)
+    assert_allclose(probs[:3], [0.42457146, 0.33359186, 0.17437756], rtol=1e-7)

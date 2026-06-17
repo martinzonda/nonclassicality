@@ -9,7 +9,7 @@ description = "Nonclassicality detection of photon-number statistics via linear 
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Pavel Balaz", email = "pavel.balaz@pm.me" }]
+authors = [{ name = "Martin Zonda", email = "martin.zonda@matfyz.cuni.cz" },{ name = "Pavel Balaz", email = "pavel.balaz@pm.me" }]
 keywords = ["quantum optics", "nonclassicality", "linear programming", "Klyshko", "photon statistics"]
 
 dependencies = [

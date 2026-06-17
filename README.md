@@ -1,36 +1,51 @@
 # Nonclassicality detection via linear programming
 
-Detect whether a photon-number distribution $\mathbf P = (P_0, P_1, \dots)$ is
-**nonclassical** — i.e. *not* expressible as a classical mixture of coherent
-(Poissonian) states — using an exact linear-programming witness, and compare it
-against a battery of fast analytical criteria (Klyshko, generalized Klyshko,
-majorization).
+Certify nonclassicality from finite sets of occupation probabilities using an exact linear-programming witness, and compare the results against a battery of analytical criteria (Klyshko, generalized Klyshko, and majorization witnesses).
 
 ## Problem statement
 
-A distribution is **classical** iff it is a mixture of Poissonians,
-$P_k = \int \mathrm{d}\mu\, \rho(\mu)\, p_k(\mu)$ with $\rho \ge 0$, where
+Given a finite set of occupation probabilities, the code tests whether they are compatible with a classical state, i.e., with a mixture of Poisson distributions,
 
-$$ p_k(\mu) = e^{-\mu}\,\frac{\mu^k}{k!}. $$
+$$
+P_k = \int \mathrm{d}\mu\, \rho(\mu)\, p_k(\mu),
+\qquad \rho(\mu)\ge0,
+$$
+
+where
+
+$$
+p_k(\mu)=e^{-\mu}\frac{\mu^k}{k!}.
+$$
+
+Any incompatibility with this structure certifies nonclassicality.
 
 Nonclassicality is certified by a linear witness $\boldsymbol\lambda$ for which
 
-$$ f(\boldsymbol\lambda) =
-   \max\!\Big(0,\ \max_{\mu \ge 0} \boldsymbol\lambda\cdot\mathbf p(\mu)\Big)
-   - \boldsymbol\lambda\cdot\mathbf P $$
+$$
+f(\boldsymbol\lambda)
+=
+\max\!\Bigl(0,\max_{\mu\ge0}\boldsymbol\lambda\!\cdot\!\mathbf p(\mu)\Bigr)
+-
+\boldsymbol\lambda\!\cdot\!\mathbf P
+$$
 
-becomes negative. Minimising $f$ over $\boldsymbol\lambda$ (with bounded
-components) is a **semi-infinite linear program**: infinitely many constraints,
-one per $\mu \ge 0$. It is solved by a cutting-plane / exchange method —
-repeatedly solving a finite master LP and adding the most-violated $\mu$ (found
-analytically from the stationary-point polynomial) until convergence. The
-reported quantity `num` $= -\min_{\boldsymbol\lambda} f$ is positive exactly
-when $\mathbf P$ is nonclassical.
+becomes negative. Minimizing $f$ over $\boldsymbol\lambda$ (with bounded components) leads to a semi-infinite linear program: infinitely many constraints, one for each $\mu\ge0$. The problem is solved using a cutting-plane (exchange) method, which repeatedly solves a finite master linear program and adds the most violated constraint until convergence.
+
+The reported quantity
+
+$$
+\mathrm{num}=-\min_{\boldsymbol\lambda} f
+$$
+
+is positive whenever the supplied occupation probabilities certify nonclassicality. If `num = 0`, no nonclassicality can be certified from the provided probabilities, although the underlying quantum state may still be nonclassical.
 
 ## Installation
 
 ```bash
-# pip (editable, with dev + physics extras)
+# pip (editable, with development/notebook tools)
+python -m pip install -e ".[dev]"
+
+# optional: include QuTiP for the two-boson PBA demo
 python -m pip install -e ".[dev,physics]"
 
 # or pinned runtime deps only
@@ -41,9 +56,7 @@ conda env create -f environment.yml
 conda activate nonclassicality-lp
 ```
 
-Python ≥ 3.10 is required. **QuTiP is optional** — only the density-matrix state
-generators in `src/analytical/models.py` need it; everything else (solvers,
-analytical criteria, the Jaynes-Cummings model) works without it.
+Python ≥ 3.10 is required. **QuTiP is optional** — only the coherent-state probabilistic-boson-addition helper used in `notebooks/demo_4_probabilistic_boson_addition.ipynb` requires it. All solvers, analytical criteria, Jaynes--Cummings examples, and the closed-form one-boson PBA demo work without QuTiP.
 
 ## Quick start
 
@@ -52,62 +65,74 @@ import numpy as np
 from src.solvers.lp_solver import solve_semi_infinite_lp
 from src.utils.numerics import inverse_factorials
 
-indx  = np.array([0, 1, 2, 3])          # photon numbers P_0..P_3
-probs = np.array([0.6, 0.1, 0.2, 0.05]) # the distribution to test
+indx  = np.array([0, 1, 2, 3])          # occupation probabilities P_0..P_3
+probs = np.array([0.6, 0.1, 0.2, 0.05]) # probabilities to test
 fact  = inverse_factorials(int(indx.max()))   # 1/k!
 
 res = solve_semi_infinite_lp(probs, indx, fact, bounds=[(-1, 1)] * 4)
-print(res["num"], "-> nonclassical:", res["num"] > 0)   # 0.1134 -> True
+print(res["num"], "-> nonclassical:", res["num"] > 0)
 ```
 
 Runnable scripts:
 
 ```bash
-python examples/single_point_witness.py     # one point, both solvers
-python examples/run_jcm_scan.py             # small Jaynes-Cummings grid scan
-python examples/generate_sample_data.py     # sample data for the figures notebook
-python scripts/run_scan.py --n0 256 --n1 256 --out results/scan.npy   # CLI
+python examples/single_point_witness.py
+python examples/run_jcm_scan.py
+python scripts/run_scan.py --n0 256 --n1 256 --out results/scan.npy
+python scripts/run_scan.py --no-analytical-m --y-scan-direction decreasing
 ```
+
+Demo notebooks:
+
+- `notebooks/demo_1_lp_solver.ipynb`: single-point LP witness, Nelder-Mead comparison, and a single Jaynes--Cummings point.
+- `notebooks/demo_2_analytical_vs_numerical.ipynb`: probability-plane scans comparing LP and analytical criteria.
+- `notebooks/demo_3_jaynes_cummings.ipynb`: Jaynes--Cummings nonclassicality maps.
+- `notebooks/demo_4_probabilistic_boson_addition.ipynb`: probabilistic boson addition, reversed y-scan direction, high-precision LP settings, probability-scale diagnostics, and CSV save/load.
 
 ## Directory structure
 
-```
-src/
-├── config.py            # all tolerances, bounds, seeds, paths (dataclasses)
-├── solvers/
-│   ├── lp_solver.py        # PRIMARY: semi-infinite LP, cutting-plane method
-│   └── minimize_solver.py  # independent Nelder-Mead cross-check
-├── analytical/
-│   ├── criteria_k.py            # analytical_k (W01, 3-index + generalized Klyshko)
-│   ├── criteria_majorization.py # analytical_m + majorization-pair machinery
-│   ├── criteria_classic.py      # klyshko, taylored, log01rule, generalized_klyshko*
-│   ├── jaynes_cummings.py       # Pjaycum (QuTiP-free)
-│   └── models.py                # QuTiP state generators (optional)
-├── comparison/scan_2d.py    # run2D: numerical-vs-analytical 2D scan
-├── visualization/           # boundary extraction + plotting helpers
-└── utils/                   # inverse_factorials, collect_lambda, I/O helpers
-notebooks/        # presentation notebooks (import from src); legacy/ = originals
-examples/         # minimal runnable scripts
-scripts/          # argparse CLI (run_scan.py)
-tests/            # pytest suite mirroring src/
-data/             # all_genK/ precomputed majorization pairs (tracked); rest ignored
-results/          # generated outputs (gitignored)
-config.yaml       # optional config overrides
+```text
+.
+├── config.yaml             # optional local configuration overrides
+├── data/
+│   ├── README.md
+│   └── all_genK/           # tracked precomputed majorization-pair archives
+├── examples/
+│   ├── run_jcm_scan.py     # small Jaynes--Cummings 2D scan
+│   └── single_point_witness.py
+├── notebooks/
+│   ├── demo_1_lp_solver.ipynb
+│   ├── demo_2_analytical_vs_numerical.ipynb
+│   ├── demo_3_jaynes_cummings.ipynb
+│   └── demo_4_probabilistic_boson_addition.ipynb
+├── results/                # generated outputs; ignored except .gitkeep
+├── scripts/
+│   └── run_scan.py         # command-line probability-plane scan
+├── src/
+│   ├── config.py           # tolerances, bounds, seeds, paths
+│   ├── analytical/         # analytical criteria and demo probability models
+│   ├── comparison/         # 2D numerical-vs-analytical scan helpers
+│   ├── solvers/            # LP and Nelder-Mead solvers
+│   ├── utils/              # numerical and I/O helpers
+│   └── visualization/      # boundary extraction and plotting helpers
+└── tests/                  # pytest suite
 ```
 
 ## Key functions
 
 | Function | Module | Purpose |
 |----------|--------|---------|
-| `solve_semi_infinite_lp` | `solvers.lp_solver` | Primary witness solver (cutting-plane LP). |
-| `max_inner_value` | `solvers.lp_solver` | Exact $\max_{\mu\ge0}\boldsymbol\lambda\cdot\mathbf p(\mu)$ via roots. |
-| `minimize_witness` / `scan_2d_minimize` | `solvers.minimize_solver` | Nelder-Mead cross-check solver. |
-| `analytical_k` | `analytical.criteria_k` | Batch analytical criteria (W01, Klyshko, generalized). |
-| `analytical_m` | `analytical.criteria_majorization` | Majorization (generalized Klyshko) criterion. |
-| `klyshko`, `taylored`, `log01rule`, `analcrit2D` | `analytical.criteria_classic` | Individual analytical criteria + their union. |
-| `Pjaycum` | `analytical.jaynes_cummings` | Jaynes-Cummings photon statistics $P_n(\nu,\tau)$. |
-| `run2D` | `comparison.scan_2d` | 2D grid scan comparing numerical and analytical maps. |
-| `extract_binary_boundary` | `visualization.boundaries` | Decision-boundary curves from a binary map. |
+| `solve_semi_infinite_lp` | `solvers.lp_solver` | Primary nonclassicality solver based on semi-infinite linear programming. |
+| `max_inner_value` | `solvers.lp_solver` | Exact evaluation of $\max_{\mu\ge0}\boldsymbol\lambda\cdot\mathbf p(\mu)$. |
+| `minimize_witness` / `scan_2d_minimize` | `solvers.minimize_solver` | Independent Nelder-Mead cross-check. |
+| `analytical_k` | `analytical.criteria_k` | Klyshko and generalized Klyshko criteria. |
+| `analytical_m` | `analytical.criteria_majorization` | Majorization-based criteria. |
+| `klyshko`, `taylored`, `log01rule`, `analcrit2D` | `analytical.criteria_classic` | Individual analytical witnesses and their union. |
+| `Pjaycum` | `analytical.jaynes_cummings` | Jaynes--Cummings occupation probabilities. |
+| `test_P_pba`, `pba_Pk_co` | `analytical.models` | Probabilistic boson-addition examples. |
+| `analyze_2d` | `comparison.scan_2d` | Analyze an existing probability grid from a model or CSV file. |
+| `run2D` | `comparison.scan_2d` | Compare numerical and analytical criteria in a probability plane. |
+| `extract_binary_boundary` | `visualization.boundaries` | Extract decision boundaries from binary maps. |
 
 ## Running the tests
 
@@ -115,34 +140,21 @@ config.yaml       # optional config overrides
 pytest tests/ -v
 ```
 
-64 tests cover the solvers (including a brute-force check of the inner
-maximisation and an LP-vs-minimize agreement test), the analytical criteria,
-the configuration loader, the I/O helpers, and the 2D scan.
+The test suite covers the LP solver, the inner maximization routine, agreement between the LP and Nelder-Mead implementations, analytical criteria, configuration handling, I/O utilities, and two-dimensional scans.
 
 ## Dependencies and Python version
 
 - **Python** ≥ 3.10
 - **Runtime**: numpy, scipy, matplotlib, tqdm, PyYAML
-- **Optional** (`[physics]`): qutip
-- **Dev** (`[dev]`): pytest, ipykernel, nbconvert
+- **Optional** (`[physics]`): qutip (only for the coherent-state PBA helper)
+- **Development** (`[dev]`): pytest, ipykernel, nbconvert
 
-Exact tested versions are pinned in `requirements.txt` and `environment.yml`.
+Exact tested versions are listed in `requirements.txt` and `environment.yml`.
 
 ## Reproducibility
 
-- **Configuration** lives entirely in `src/config.py` (dataclasses). No
-  tolerances or magic numbers are hard-coded in the algorithms. Override any
-  value via a `config.yaml` at the repository root, or point
-  `NONCLASSICALITY_CONFIG` at a different file. Only the keys you set are
-  applied; unknown keys raise an error.
-- **Tolerances** (defaults): LP `tol=1e-10`, `max_iter=100`, `imtol=1e-9`;
-  2D scan `tol=1e-10`, `bias=1e-8`, `max_iter=300`, `imtol=1e-8`; Nelder-Mead
-  `bias=1e-7`, `tol=1e-7`.
-- **Random seeds**: the stochastic Nelder-Mead scans accept a `seed` argument
-  (`MINIMIZE.seed`, default `None`) feeding `numpy.random.default_rng`, so runs
-  are reproducible when a seed is set.
-- **Thread limits**: `config.apply_thread_limits()` sets the BLAS/OpenMP
-  environment variables (call before importing NumPy/SciPy).
-- **Data**: the precomputed majorization-pair archives in `data/all_genK/` are
-  version-controlled; large/generated artifacts are gitignored and regenerated
-  with `examples/generate_sample_data.py`.
+- **Configuration** is centralized in `src/config.py` and can be overridden through `config.yaml`.
+- **Tolerances** (defaults): LP `tol=1e-10`, `max_iter=100`, `imtol=1e-9`; 2D scans `tol=1e-10`, `bias=1e-8`, `max_iter=300`, `imtol=1e-8`; Nelder-Mead `bias=1e-7`, `tol=1e-7`.
+- **Random seeds** can be specified for stochastic scans through the `seed` argument.
+- **Thread limits** can be controlled via `config.apply_thread_limits()`.
+- **Data**: precomputed majorization archives in `data/all_genK/` are version-controlled inputs, while generated outputs are written to `results/`.

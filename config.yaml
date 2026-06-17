@@ -39,9 +39,9 @@
 #   imtol: 1.0e-8
 #   lambda_lower: -1.0
 #   lambda_upper: 1.0
-#   dPA: 0.0
+#   dPA: 1.0e-10
 #   uPA: 1.0
-#   dPB: 0.0
+#   dPB: 1.0e-10
 #   uPB: 0.4
 #   prest: [0.05, 0.05]
 
