@@ -39,6 +39,12 @@ $$
 
 is positive whenever the supplied occupation probabilities certify nonclassicality. If `num = 0`, no nonclassicality can be certified from the provided probabilities, although the underlying quantum state may still be nonclassical.
 
+Input probability vectors are checked before classification. If any selected
+probability is negative or non-finite, or if the selected probabilities already
+sum to more than one, the point is treated as non-physical: single-point solvers
+return `num = NaN`, and 2D scans store `NaN` at that grid point and draw it as
+white in the demo maps.
+
 ## Installation
 
 ```bash
@@ -64,13 +70,14 @@ Python ≥ 3.10 is required. **QuTiP is optional** — only the coherent-state p
 import numpy as np
 from src.solvers.lp_solver import solve_semi_infinite_lp
 from src.utils.numerics import inverse_factorials
+from src.config import SCAN
 
 indx  = np.array([0, 1, 2, 3])          # occupation probabilities P_0..P_3
 probs = np.array([0.6, 0.1, 0.2, 0.05]) # probabilities to test
 fact  = inverse_factorials(int(indx.max()))   # 1/k!
 
 res = solve_semi_infinite_lp(probs, indx, fact, bounds=[(-1, 1)] * 4)
-print(res["num"], "-> nonclassical:", res["num"] > 0)
+print(res["num"], "-> nonclassical:", res["num"] > SCAN.bias)
 ```
 
 Runnable scripts:

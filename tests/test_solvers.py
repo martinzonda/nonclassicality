@@ -6,6 +6,7 @@ from numpy.testing import assert_allclose
 
 from src.solvers.lp_solver import (
     pvec_mu,
+    physical_probability_mask,
     max_inner_value,
     max_inner_value_fast,
     true_objective,
@@ -34,6 +35,19 @@ def test_pvec_mu_matches_poisson(indx4, fact4):
 def test_pvec_mu_zero_mu(indx4, fact4):
     # At mu = 0 only P_0 = 1, the rest vanish.
     assert_allclose(pvec_mu(0.0, indx4, fact4), [1.0, 0.0, 0.0, 0.0], atol=1e-15)
+
+
+def test_physical_probability_mask_rejects_invalid_vectors():
+    probs = np.array([
+        [0.5, 0.2],
+        [0.8, 0.3],
+        [0.5, -0.1],
+        [0.5, np.nan],
+    ])
+    assert np.array_equal(
+        physical_probability_mask(probs),
+        np.array([True, False, False, False]),
+    )
 
 
 # -------------------------------------------------------------- max_inner_value
@@ -124,6 +138,17 @@ def test_regression_known_objective(indx4, fact4, lambda_bounds4):
     assert_allclose(res["num"], 0.1133973836, rtol=0, atol=1e-7)
 
 
+def test_nonphysical_point_returns_nan(indx4, fact4, lambda_bounds4):
+    probs = np.array([0.8, 0.3, 0.0, 0.0])
+    with pytest.warns(RuntimeWarning, match="Non-physical probability vector"):
+        res = solve_semi_infinite_lp(probs, indx4, fact4, lambda_bounds4)
+
+    assert not res["physical"]
+    assert not res["success"]
+    assert np.isnan(res["num"])
+    assert np.all(np.isnan(res["lam"]))
+
+
 def test_minimize_witness_detects_nonclassical(nonclassical_probs, indx4, fact4, lambda_bounds4):
     value, _ = minimize_witness(
         probs=nonclassical_probs, indx=indx4, fact=fact4,
@@ -131,3 +156,16 @@ def test_minimize_witness_detects_nonclassical(nonclassical_probs, indx4, fact4,
         bounds=lambda_bounds4,
     )
     assert value > 1e-3
+
+
+def test_minimize_witness_nonphysical_returns_nan(indx4, fact4, lambda_bounds4):
+    probs = np.array([0.8, 0.3, 0.0, 0.0])
+    with pytest.warns(RuntimeWarning, match="Non-physical probability vector"):
+        value, lam = minimize_witness(
+            probs=probs, indx=indx4, fact=fact4,
+            init_a=np.zeros(4), init_b=np.ones(4), init_c=0.1 * np.ones(4),
+            bounds=lambda_bounds4,
+        )
+
+    assert np.isnan(value)
+    assert np.all(np.isnan(lam))

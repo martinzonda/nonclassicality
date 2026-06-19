@@ -37,9 +37,20 @@ def extract_binary_boundary(
         One ``(M, 2)`` array of ``[P0, P1]`` vertices per boundary curve.
         Degenerate single-point curves are dropped.
     """
+    nonclass_num = np.asarray(nonclass_num, dtype=float)
+    finite = np.isfinite(nonclass_num)
+    if not np.any(finite):
+        return []
+
+    finite_values = nonclass_num[finite]
+    if finite_values.min() > _BOUNDARY_LEVEL or finite_values.max() < _BOUNDARY_LEVEL:
+        return []
+
+    masked_map = np.ma.masked_invalid(nonclass_num)
+
     fig, ax = plt.subplots()
 
-    cs = ax.contour(P0_all, P1_all, nonclass_num, levels=[_BOUNDARY_LEVEL])
+    cs = ax.contour(P0_all, P1_all, masked_map, levels=[_BOUNDARY_LEVEL])
 
     boundaries = []
     for path in cs.get_paths():

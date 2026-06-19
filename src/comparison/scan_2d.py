@@ -9,11 +9,17 @@ are fixed.
 from __future__ import annotations
 
 import logging
+import warnings
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from tqdm import tqdm
 
-from src.solvers.lp_solver import max_inner_value, solve_semi_infinite_lp
+from src.solvers.lp_solver import (
+    max_inner_value,
+    physical_probability_mask,
+    pvec_mu,
+    solve_semi_infinite_lp,
+)
 from src.analytical.criteria_k import analytical_k
 from src.analytical.criteria_majorization import analytical_m
 from src.visualization.boundaries import extract_binary_boundary
@@ -150,9 +156,13 @@ def analyze_2d(
 
     fact = inverse_factorials(int(np.max(indx)))
 
-    nonclass_num = np.zeros((N1, N0), dtype=np.int8)
-    nonclass_c = np.zeros((N1, N0))
-    all_lambda = np.zeros((*nonclass_num.shape, N_P))
+    physical_mask = physical_probability_mask(Pall)
+    invalid_count = int(np.size(physical_mask) - np.count_nonzero(physical_mask))
+
+    nonclass_num = np.full((N1, N0), np.nan, dtype=float)
+    nonclass_num[physical_mask] = 0.0
+    nonclass_c = np.full((N1, N0), np.nan, dtype=float)
+    all_lambda = np.full((*nonclass_num.shape, N_P), np.nan, dtype=float)
 
     bounds = [_LAMBDA_BOUND] * N_P
 
@@ -163,6 +173,9 @@ def analyze_2d(
     for i0 in tqdm(range(N0)):
         lam_aux = np.zeros(N_P)  # warm start carried down each column
         for i1 in y_order:
+            if not physical_mask[i1, i0]:
+                continue
+
             Pin = Pall[i1, i0, :]
 
             # Cheap check first: does the previous column's lambda already
@@ -170,7 +183,7 @@ def analyze_2d(
             w, mu_star = max_inner_value(indx, lam_aux, fact)
             true_obj = lam_aux @ Pin - w
             if true_obj > bias:
-                nonclass_num[i1, i0] = 1
+                nonclass_num[i1, i0] = 1.0
                 nonclass_c[i1, i0] = true_obj
                 all_lambda[i1, i0, :] = lam_aux
             else:
@@ -180,13 +193,14 @@ def analyze_2d(
                     mu_init=(0,),
                     tol=tol, max_iter=max_iter, imtol=imtol,
                     lp_failed_continue=True,
+                    warn_nonphysical=False,
                 )
 
                 w, mu_star = max_inner_value(indx, result["lam"], fact)
                 true_obj = result["lam"] @ Pin - w
 
                 if true_obj > bias:
-                    nonclass_num[i1, i0] = 1
+                    nonclass_num[i1, i0] = 1.0
                     lam_aux = result["lam"]
 
                 nonclass_c[i1, i0] = true_obj
@@ -194,22 +208,44 @@ def analyze_2d(
 
     boundaries = extract_binary_boundary(x_values, y_values, nonclass_num)
 
+    # Analytical criteria expect physical probability vectors. Evaluate them on
+    # a harmless classical replacement at invalid points, then restore NaNs.
+    Pall_ana_eval = Pall_ana.copy()
+    if invalid_count:
+        Pall_ana_eval[~physical_mask] = pvec_mu(1.0, indx_ana, fact)
+
     # Analytical "K" criteria.
-    nonclass_anaK, ncaf_anaK = analytical_k(Pall_ana, fact, indx=indx_ana)
+    nonclass_anaK, ncaf_anaK = analytical_k(Pall_ana_eval, fact, indx=indx_ana)
+    nonclass_anaK = nonclass_anaK.astype(float)
+    nonclass_anaK[~physical_mask] = np.nan
     boundaries_anaK = extract_binary_boundary(x_values, y_values, nonclass_anaK)
 
     # Generalized Klyshko (majorization) criterion.
     if use_analytical_m:
-        nonclass_anaM, ncaf_anaM, nagM = analytical_m(Pall_ana, indx=indx_ana)
+        nonclass_anaM, ncaf_anaM, nagM = analytical_m(
+            Pall_ana_eval, indx=indx_ana
+        )
+        nonclass_anaM = nonclass_anaM.astype(float)
+        nonclass_anaM[~physical_mask] = np.nan
         logger.info("analytical_m evaluated %d pairs", nagM)
         boundaries_anaM = extract_binary_boundary(x_values, y_values, nonclass_anaM)
     else:
-        nonclass_anaM = np.zeros_like(nonclass_anaK, dtype=bool)
+        nonclass_anaM = np.zeros_like(nonclass_anaK, dtype=float)
+        nonclass_anaM[~physical_mask] = np.nan
         boundaries_anaM = []
         logger.info("analytical_m skipped")
 
-    nonclass_ana = np.where(nonclass_anaK + nonclass_anaM > 0.5, 1, 0)
+    nonclass_ana = np.where(nonclass_anaK + nonclass_anaM > 0.5, 1.0, 0.0)
+    nonclass_ana[~physical_mask] = np.nan
     boundaries_ana = extract_binary_boundary(x_values, y_values, nonclass_ana)
+
+    if invalid_count:
+        warnings.warn(
+            f"{invalid_count} non-physical probability vector(s) were skipped "
+            "during the 2D scan and stored as NaN.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     save_arrays(
         fi,

@@ -16,7 +16,7 @@ def small_scan(tmp_path):
     result = run2D(
         N0=12, N1=12,
         indx=np.array([0, 1, 2, 3], dtype=np.int16),
-        dPA=1e-10, uPA=0.9, dPB=1e-10, uPB=0.3,
+        dPA=1e-10, uPA=0.8, dPB=1e-10, uPB=0.1,
         Prest=np.array([0.05, 0.05]),
         fi=out,
     )
@@ -62,8 +62,9 @@ def test_run2d_numerical_superset_of_analytical(small_scan):
             np.load(f, allow_pickle=True)
         nonclass_num = np.load(f)
         nonclass_ana = np.load(f)
-    # numerical >= analytical everywhere (no analytical-only false positives).
-    assert np.all(nonclass_num.astype(bool) | ~nonclass_ana.astype(bool))
+    valid = np.isfinite(nonclass_num) & np.isfinite(nonclass_ana)
+    # numerical >= analytical everywhere valid (no analytical-only false positives).
+    assert np.all(nonclass_num[valid].astype(bool) | ~nonclass_ana[valid].astype(bool))
 
 
 def test_run2d_can_skip_analytical_m(monkeypatch, tmp_path):
@@ -77,7 +78,7 @@ def test_run2d_can_skip_analytical_m(monkeypatch, tmp_path):
     boundaries, boundaries_ana, boundaries_anaK, boundaries_anaM = run2D(
         N0=4, N1=4,
         indx=np.array([0, 1, 2, 3], dtype=np.int16),
-        dPA=1e-10, uPA=0.9, dPB=1e-10, uPB=0.3,
+        dPA=1e-10, uPA=0.8, dPB=1e-10, uPB=0.1,
         Prest=np.array([0.05, 0.05]),
         fi=out,
         use_analytical_m=False,
@@ -95,7 +96,7 @@ def test_run2d_allows_sweep_order_different_from_analytical_order(tmp_path):
     result = run2D(
         N0=4, N1=4,
         indx=np.array([1, 3, 2, 5, 6], dtype=np.int16),
-        dPA=1e-10, uPA=1.0, dPB=1e-10, uPB=1.0,
+        dPA=1e-10, uPA=0.3, dPB=1e-10, uPB=0.04,
         Prest=np.array([0.05, 0.001, 0.001]),
         fi=out,
         use_analytical_m=False,
@@ -154,6 +155,53 @@ def test_analyze_2d_accepts_precomputed_probability_grid(tmp_path):
     assert fixed_saved.shape == (0,)
     assert nonclass_num.shape == (len(y_values), len(x_values))
     assert nonclass_ana.shape == (len(y_values), len(x_values))
+
+
+def test_analyze_2d_marks_nonphysical_points_nan(monkeypatch, tmp_path):
+    Pall = np.zeros((2, 2, 3))
+    Pall[0, 0, :] = [0.4, 0.2, 0.1]
+    Pall[0, 1, :] = [0.8, 0.3, 0.0]   # sum > 1
+    Pall[1, 0, :] = [0.4, -0.1, 0.1]  # negative probability
+    Pall[1, 1, :] = [0.2, 0.2, 0.2]
+
+    calls = []
+
+    def fake_max_inner_value(*args, **kwargs):
+        return 0.0, 0.0
+
+    def fake_solve(probs, *args, **kwargs):
+        calls.append(np.asarray(probs, dtype=float).copy())
+        return {"lam": np.zeros(3)}
+
+    monkeypatch.setattr(scan_2d, "max_inner_value", fake_max_inner_value)
+    monkeypatch.setattr(scan_2d, "solve_semi_infinite_lp", fake_solve)
+
+    out = os.path.join(tmp_path, "nonphysical.npy")
+    with pytest.warns(RuntimeWarning, match="non-physical probability vector"):
+        analyze_2d(
+            Pall,
+            x_values=np.arange(2),
+            y_values=np.arange(2),
+            indx=np.array([0, 1, 2]),
+            fi=out,
+            use_analytical_m=False,
+        )
+
+    assert len(calls) == 2
+    assert all(np.all(p >= 0.0) and np.sum(p) <= 1.0 for p in calls)
+
+    with open(out, "rb") as f:
+        for _ in range(7):
+            np.load(f, allow_pickle=True)
+        nonclass_num = np.load(f)
+        nonclass_ana = np.load(f)
+
+    assert np.isnan(nonclass_num[0, 1])
+    assert np.isnan(nonclass_num[1, 0])
+    assert np.isnan(nonclass_ana[0, 1])
+    assert np.isnan(nonclass_ana[1, 0])
+    assert np.isfinite(nonclass_num[0, 0])
+    assert np.isfinite(nonclass_num[1, 1])
 
 
 def test_analyze_2d_allows_unsorted_indx_for_model_grid(tmp_path):

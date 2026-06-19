@@ -21,6 +21,7 @@ A negative optimal objective certifies that ``probs`` is nonclassical.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Sequence
 
 import numpy as np
@@ -38,6 +39,59 @@ logger = logging.getLogger(__name__)
 _ZERO_ROW_ATOL = SOLVER.zero_row_atol
 
 Bounds = Sequence[tuple[float | None, float | None]]
+
+
+def physical_probability_mask(
+    probs: ArrayLike,
+    atol: float = 1e-12,
+) -> NDArray[np.bool_]:
+    """Return a mask of physically admissible finite probability vectors.
+
+    The last axis is interpreted as the selected probabilities. A finite subset
+    of probabilities is physically admissible only if all entries are finite and
+    non-negative, and if their partial sum does not exceed one. A small absolute
+    tolerance avoids rejecting harmless roundoff at the boundary.
+    """
+    arr = np.asarray(probs, dtype=float)
+    if arr.shape == ():
+        arr = arr.reshape(1)
+
+    finite = np.all(np.isfinite(arr), axis=-1)
+    nonnegative = np.all(arr >= -atol, axis=-1)
+    normalized = np.sum(arr, axis=-1) <= 1.0 + atol
+    return finite & nonnegative & normalized
+
+
+def is_physical_probability_vector(
+    probs: ArrayLike,
+    atol: float = 1e-12,
+) -> bool:
+    """Return ``True`` if one selected probability vector is physical."""
+    return bool(physical_probability_mask(np.asarray(probs, dtype=float), atol=atol))
+
+
+def _nonphysical_result(
+    probs: NDArray[np.float64],
+    mu_init: Sequence[float],
+) -> dict:
+    n = len(probs)
+    return {
+        "lam": np.full(n, np.nan),
+        "t": np.nan,
+        "obj": np.nan,
+        "num": np.nan,
+        "mu_star": np.nan,
+        "mu_list": [float(mu) for mu in mu_init],
+        "iterations": 0,
+        "success": False,
+        "physical": False,
+        "violation": np.nan,
+        "lp_res": None,
+        "message": (
+            "Non-physical probability vector: probabilities must be finite, "
+            "non-negative, and have partial sum <= 1."
+        ),
+    }
 
 
 def pvec_mu(mu: float, indx: ArrayLike, fact: ArrayLike) -> NDArray[np.float64]:
@@ -490,6 +544,7 @@ def solve_semi_infinite_lp(
     max_iter: int = SOLVER.max_iter,
     imtol: float = SOLVER.imtol,
     lp_failed_continue: bool = False,
+    warn_nonphysical: bool = True,
 ) -> dict:
     r"""Solve the semi-infinite witness LP by a cutting-plane method.
 
@@ -520,6 +575,9 @@ def solve_semi_infinite_lp(
         Default ``1e-9``.
     lp_failed_continue : bool, optional
         Forwarded to :func:`solve_master_lp`. Default ``False``.
+    warn_nonphysical : bool, optional
+        If ``True``, emit a warning and return ``num = NaN`` when ``probs`` is
+        not a physical finite probability subset. Default ``True``.
 
     Returns
     -------
@@ -536,6 +594,12 @@ def solve_semi_infinite_lp(
     probs = np.asarray(probs, dtype=float).reshape(-1)
     indx = np.asarray(indx, dtype=int).reshape(-1)
     fact = np.asarray(fact, dtype=float).reshape(-1)
+
+    if not is_physical_probability_vector(probs):
+        result = _nonphysical_result(probs, mu_init)
+        if warn_nonphysical:
+            warnings.warn(result["message"], RuntimeWarning, stacklevel=2)
+        return result
 
     mu_list = [float(mu) for mu in mu_init]
 
@@ -560,6 +624,7 @@ def solve_semi_infinite_lp(
                 "mu_list": mu_list,
                 "iterations": it + 1,
                 "success": True,
+                "physical": True,
                 "violation": violation,
                 "lp_res": lp_res,
             }
@@ -580,6 +645,7 @@ def solve_semi_infinite_lp(
                 "mu_list": mu_list,
                 "iterations": it + 1,
                 "success": False,
+                "physical": True,
                 "violation": violation,
                 "lp_res": lp_res,
                 "message": "Redundant cut encountered with positive violation.",
@@ -597,6 +663,7 @@ def solve_semi_infinite_lp(
         "mu_list": mu_list,
         "iterations": max_iter,
         "success": False,
+        "physical": True,
         "violation": violation,
         "lp_res": lp_res,
         "message": "Maximum number of cutting-plane iterations reached.",

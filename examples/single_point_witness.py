@@ -3,7 +3,8 @@
 
 Runs both solvers (the primary LP cutting-plane method and the Nelder-Mead
 cross-check) on one photon-number distribution and prints the witness value.
-A negative objective (``num > 0``) certifies nonclassicality.
+In floating-point arithmetic, this example uses ``SCAN.bias`` as the decision
+threshold for nonclassicality.
 
 Usage
 -----
@@ -19,10 +20,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
-from src.config import SOLVER
-from src.solvers.lp_solver import solve_semi_infinite_lp, max_inner_value
+from src.config import SCAN, SOLVER
+from src.solvers.lp_solver import solve_semi_infinite_lp
 from src.solvers.minimize_solver import minimize_witness
 from src.utils.numerics import inverse_factorials
+
+
+def classify(value: float, threshold: float) -> str:
+    if np.isnan(value):
+        return "non-physical"
+    return str(value > threshold)
 
 
 def main() -> None:
@@ -33,10 +40,15 @@ def main() -> None:
     probs = np.array([0.6, 0.1, 0.2, 0.05])
     fact = inverse_factorials(int(np.max(indx)))
     bounds = [SOLVER.lambda_bound] * len(indx)
+    threshold = SCAN.bias
 
     # Primary LP solver.
     lp = solve_semi_infinite_lp(probs, indx, fact, bounds)
-    print(f"LP        : num = {lp['num']:.10f}  (nonclassical: {lp['num'] > 0})")
+    print(f"decision threshold = {threshold:g}")
+    print(
+        f"LP        : num = {lp['num']:.10f}  "
+        f"(nonclassical: {classify(lp['num'], threshold)})"
+    )
     print(f"            lambda = {np.round(lp['lam'], 4)}")
 
     # Nelder-Mead cross-check from three starting points.
@@ -47,7 +59,10 @@ def main() -> None:
         init_c=0.1 * np.ones(len(indx)),
         bounds=bounds,
     )
-    print(f"Nelder-Mead: num = {value:.10f}  (nonclassical: {value > 0})")
+    print(
+        f"Nelder-Mead: num = {value:.10f}  "
+        f"(nonclassical: {classify(value, threshold)})"
+    )
 
 
 if __name__ == "__main__":
