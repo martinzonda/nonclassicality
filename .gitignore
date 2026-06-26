@@ -42,3 +42,4 @@ data/*
 # Results are generated outputs.
 results/*
 !results/.gitkeep
+data/all_genK/genKlyshko_up_to8.pkl
