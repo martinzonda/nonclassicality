@@ -1,9 +1,10 @@
 r"""2D parameter-scan comparison of the LP solver vs analytical criteria.
 
-:func:`analyze_2d` classifies an already-built 2D grid of probability vectors.
-:func:`run2D` is a convenience wrapper for the special case where the two scan
-coordinates are themselves two probabilities and all remaining probabilities
-are fixed.
+:func:`analyze_2d` is the main entry point: pass it any already-built
+probability grid and choose which analytical criteria to evaluate.  :func:`run2D`
+is only a convenience wrapper for the common probability-plane scan where the
+two coordinates are themselves two probabilities and all remaining
+probabilities are fixed.
 """
 
 from __future__ import annotations
@@ -22,15 +23,17 @@ from src.solvers.lp_solver import (
 )
 from src.analytical.criteria_k import analytical_k
 from src.analytical.criteria_majorization import analytical_m
+from src.analytical.criteria_counting_matrix import analytical_c
 from src.visualization.boundaries import extract_binary_boundary
 from src.config import SCAN
 from src.utils.numerics import inverse_factorials
-from src.utils.io import save_arrays
 
 logger = logging.getLogger(__name__)
 
 # Default per-component bounds on the witness coefficients lambda.
 _LAMBDA_BOUND = SCAN.lambda_bound
+
+ScanResult = dict[str, object]
 
 
 def _analytical_order(
@@ -62,20 +65,177 @@ def _as_unique_index(indx: ArrayLike | None, n_probs: int) -> NDArray[np.int_]:
     return indx
 
 
+def _criterion_map(
+    nonclass: ArrayLike,
+    physical_mask: NDArray[np.bool_],
+) -> NDArray[np.float64]:
+    """Return a float map with non-physical points represented by NaN."""
+    nonclass_map = np.asarray(nonclass, dtype=float)
+    nonclass_map[~physical_mask] = np.nan
+    return nonclass_map
+
+
+def _empty_criterion_map(
+    shape: tuple[int, int],
+    physical_mask: NDArray[np.bool_],
+) -> NDArray[np.float64]:
+    """Return a disabled-criterion map: zero on valid points, NaN otherwise."""
+    nonclass = np.zeros(shape, dtype=float)
+    nonclass[~physical_mask] = np.nan
+    return nonclass
+
+
+def _combine_analytical_maps(
+    maps: list[NDArray[np.float64]],
+    physical_mask: NDArray[np.bool_],
+) -> NDArray[np.float64]:
+    """Union enabled analytical maps into one nonclassicality map."""
+    combined = np.zeros(physical_mask.shape, dtype=float)
+    if maps:
+        valid_stack = np.stack([np.nan_to_num(m, nan=0.0) > 0.5 for m in maps])
+        combined = np.any(valid_stack, axis=0).astype(float)
+    combined[~physical_mask] = np.nan
+    return combined
+
+
+def _ncaf(nonclass: NDArray[np.float64], physical_mask: NDArray[np.bool_]) -> float:
+    """Fraction of valid grid points classified as nonclassical."""
+    valid_count = int(np.count_nonzero(physical_mask))
+    if valid_count == 0:
+        return 0.0
+    return float(np.nansum(nonclass > 0.5) / valid_count)
+
+
+def _as_boundary_array(boundaries: list) -> NDArray[np.object_]:
+    """Represent ragged boundary lists as a NumPy object array for archives."""
+    array = np.empty(len(boundaries), dtype=object)
+    array[:] = list(boundaries)
+    return array
+
+
+def _boundary_list(value: object) -> list:
+    """Convert a saved object-array boundary back to a plain Python list."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return list(value)
+
+
+def save_scan_result(filename: str, result: ScanResult) -> None:
+    """Save a 2D scan result as a named-array archive.
+
+    The file is written to exactly ``filename``. Use a ``.npz`` extension for
+    clarity, because the contents are a key-addressable NumPy archive.
+    """
+    numerical = result["numerical"]
+    analytical = result["analytical"]
+    ana_k = result["ana_k"]
+    ana_m = result["ana_m"]
+    counting_matrix = result["counting_matrix"]
+
+    archive = {
+        "x": result["x"],
+        "y": result["y"],
+        "indx": result["indx"],
+        "fixed": result["fixed"],
+        "physical_mask": result["physical_mask"],
+        "numerical_nonclass": numerical["nonclass"],
+        "numerical_witness": numerical["witness"],
+        "numerical_lambda": numerical["lambda"],
+        "numerical_boundaries": _as_boundary_array(numerical["boundaries"]),
+        "analytical_nonclass": analytical["nonclass"],
+        "analytical_boundaries": _as_boundary_array(analytical["boundaries"]),
+        "analytical_criteria": np.array(analytical["criteria"], dtype=object),
+        "ana_k_enabled": np.array(ana_k["enabled"], dtype=bool),
+        "ana_k_nonclass": ana_k["nonclass"],
+        "ana_k_ncaf": np.array(ana_k["ncaf"], dtype=float),
+        "ana_k_boundaries": _as_boundary_array(ana_k["boundaries"]),
+        "ana_m_enabled": np.array(ana_m["enabled"], dtype=bool),
+        "ana_m_nonclass": ana_m["nonclass"],
+        "ana_m_ncaf": np.array(ana_m["ncaf"], dtype=float),
+        "ana_m_n_pairs": np.array(ana_m["n_pairs"], dtype=int),
+        "ana_m_boundaries": _as_boundary_array(ana_m["boundaries"]),
+        "counting_matrix_enabled": np.array(counting_matrix["enabled"], dtype=bool),
+        "counting_matrix_nonclass": counting_matrix["nonclass"],
+        "counting_matrix_ncaf": np.array(counting_matrix["ncaf"], dtype=float),
+        "counting_matrix_boundaries": _as_boundary_array(counting_matrix["boundaries"]),
+    }
+
+    with open(filename, "wb") as handle:
+        np.savez_compressed(handle, **archive)
+
+
+def load_scan_result(filename: str) -> ScanResult:
+    """Load a named-array archive produced by :func:`save_scan_result`."""
+    with np.load(filename, allow_pickle=True) as data:
+        result: ScanResult = {
+            "x": data["x"],
+            "y": data["y"],
+            "indx": data["indx"],
+            "fixed": data["fixed"],
+            "physical_mask": data["physical_mask"].astype(bool),
+            "numerical": {
+                "nonclass": data["numerical_nonclass"],
+                "witness": data["numerical_witness"],
+                "lambda": data["numerical_lambda"],
+                "boundaries": _boundary_list(data["numerical_boundaries"]),
+            },
+            "ana_k": {
+                "enabled": bool(data["ana_k_enabled"].item()),
+                "nonclass": data["ana_k_nonclass"],
+                "ncaf": float(data["ana_k_ncaf"].item()),
+                "boundaries": _boundary_list(data["ana_k_boundaries"]),
+            },
+            "ana_m": {
+                "enabled": bool(data["ana_m_enabled"].item()),
+                "nonclass": data["ana_m_nonclass"],
+                "ncaf": float(data["ana_m_ncaf"].item()),
+                "n_pairs": int(data["ana_m_n_pairs"].item()),
+                "boundaries": _boundary_list(data["ana_m_boundaries"]),
+            },
+            "counting_matrix": {
+                "enabled": bool(data["counting_matrix_enabled"].item()),
+                "nonclass": data["counting_matrix_nonclass"],
+                "ncaf": float(data["counting_matrix_ncaf"].item()),
+                "boundaries": _boundary_list(data["counting_matrix_boundaries"]),
+            },
+            "analytical": {
+                "nonclass": data["analytical_nonclass"],
+                "boundaries": _boundary_list(data["analytical_boundaries"]),
+                "criteria": tuple(data["analytical_criteria"].tolist()),
+            },
+            "archive_path": filename,
+        }
+
+    # Convenient aliases for older plotting snippets and interactive use.
+    result["boundaries"] = result["numerical"]["boundaries"]
+    result["boundaries_ana"] = result["analytical"]["boundaries"]
+    result["boundaries_anaK"] = result["ana_k"]["boundaries"]
+    result["boundaries_anaM"] = result["ana_m"]["boundaries"]
+    result["boundaries_cm"] = result["counting_matrix"]["boundaries"]
+    result["nonclass_num"] = result["numerical"]["nonclass"]
+    result["nonclass_ana"] = result["analytical"]["nonclass"]
+    result["nonclass_cm"] = result["counting_matrix"]["nonclass"]
+    result["ncaf_cm"] = result["counting_matrix"]["ncaf"]
+    return result
+
+
 def analyze_2d(
     Pall: ArrayLike,
     x_values: ArrayLike,
     y_values: ArrayLike,
     indx: ArrayLike | None = None,
-    fi: str = "aux.npy",
+    fi: str = "aux.npz",
     fixed_values: ArrayLike | None = None,
     tol: float = SCAN.tol,
     bias: float = SCAN.bias,
     max_iter: int = SCAN.max_iter,
     imtol: float = SCAN.imtol,
-    use_analytical_m: bool = True,
+    use_analytical_m: bool | None = None,
+    use_ana_k: bool = True,
+    use_ana_m: bool = True,
+    use_cm: bool = True,
     y_scan_direction: str = "increasing",
-) -> tuple[list, list, list, list]:
+) -> ScanResult:
     r"""Analyze a 2D grid of probability vectors.
 
     ``Pall[i_y, i_x, :]`` is the photon-number distribution at coordinate
@@ -96,11 +256,11 @@ def analyze_2d(
         Photon-number indices corresponding to ``Pall[..., :]``. Defaults to
         ``[0, 1, ..., N_P - 1]``.
     fi : str, optional
-        Output ``.npy`` archive path. Default ``"aux.npy"``.
+        Output named NumPy archive path. Default ``"aux.npz"``.
     fixed_values : array_like, optional
-        Optional metadata saved in the archive as the third array. For the
-        probability-plane wrapper this is ``Prest``; for physical-model scans it
-        can be omitted or used for model parameters.
+        Optional metadata saved in the archive. For the probability-plane
+        wrapper this is ``Prest``; for physical-model scans it can be omitted or
+        used for model parameters.
     tol : float, optional
         LP convergence tolerance. Default ``1e-10``.
     bias : float, optional
@@ -110,27 +270,32 @@ def analyze_2d(
     imtol : float, optional
         Imaginary-part tolerance for the inner maximisation. Default ``1e-8``.
     use_analytical_m : bool, optional
-        Whether to evaluate the majorization/generalized-Klyshko criterion.
-        Default ``True``. Set to ``False`` to skip the expensive ``analytical_m``
-        pass; then the combined analytical map contains only ``analytical_k``
-        and ``boundaries_anaM`` is empty.
+        Deprecated alias for ``use_ana_m``.
+    use_ana_k, use_ana_m, use_cm : bool, optional
+        Select which analytical criteria to evaluate. ``use_ana_k`` evaluates
+        :func:`analytical_k`, ``use_ana_m`` evaluates the majorization criterion
+        :func:`analytical_m`, and ``use_cm`` evaluates the photon-counting
+        matrix criterion :func:`analytical_c`. The combined analytical map is
+        the union of all enabled analytical criteria.
     y_scan_direction : {"increasing", "decreasing"}, optional
         Direction used for the warm-started LP sweep along the first axis of
-        ``Pall``. The saved arrays and returned boundaries keep the original
+        ``Pall``. The saved archive and returned boundaries keep the original
         ``y_values`` order; only the order of LP evaluation changes. Default
         ``"increasing"``.
 
     Returns
     -------
-    boundaries : list
-        LP-solver decision boundaries.
-    boundaries_ana : list
-        Combined analytical (K + M) boundaries.
-    boundaries_anaK : list
-        ``analytical_k`` boundaries.
-    boundaries_anaM : list
-        ``analytical_m`` (majorization) boundaries.
+    dict
+        Nested dictionary with coordinates, numerical results, each analytical
+        criterion, and the combined analytical result. The most useful keys are
+        ``result["numerical"]["nonclass"]``,
+        ``result["ana_k"]["nonclass"]``, ``result["ana_m"]["nonclass"]``,
+        ``result["counting_matrix"]["nonclass"]``, and
+        ``result["analytical"]["nonclass"]``.
     """
+    if use_analytical_m is not None:
+        use_ana_m = bool(use_analytical_m)
+
     Pall = np.asarray(Pall, dtype=float)
     if Pall.ndim != 3:
         raise ValueError(f"Pall must have shape (N_y, N_x, N_P), got {Pall.shape}")
@@ -214,29 +379,52 @@ def analyze_2d(
     if invalid_count:
         Pall_ana_eval[~physical_mask] = pvec_mu(1.0, indx_ana, fact)
 
-    # Analytical "K" criteria.
-    nonclass_anaK, ncaf_anaK = analytical_k(Pall_ana_eval, fact, indx=indx_ana)
-    nonclass_anaK = nonclass_anaK.astype(float)
-    nonclass_anaK[~physical_mask] = np.nan
-    boundaries_anaK = extract_binary_boundary(x_values, y_values, nonclass_anaK)
+    analytical_maps: list[NDArray[np.float64]] = []
+    analytical_criteria: list[str] = []
 
-    # Generalized Klyshko (majorization) criterion.
-    if use_analytical_m:
+    if use_ana_k:
+        nonclass_anaK_bool, _ = analytical_k(Pall_ana_eval, fact, indx=indx_ana)
+        nonclass_anaK = _criterion_map(nonclass_anaK_bool, physical_mask)
+        boundaries_anaK = extract_binary_boundary(x_values, y_values, nonclass_anaK)
+        analytical_maps.append(nonclass_anaK)
+        analytical_criteria.append("ana_k")
+    else:
+        nonclass_anaK = _empty_criterion_map((N1, N0), physical_mask)
+        boundaries_anaK = []
+        logger.info("analytical_k skipped")
+
+    if use_ana_m:
         nonclass_anaM, ncaf_anaM, nagM = analytical_m(
             Pall_ana_eval, indx=indx_ana
         )
-        nonclass_anaM = nonclass_anaM.astype(float)
-        nonclass_anaM[~physical_mask] = np.nan
+        nonclass_anaM = _criterion_map(nonclass_anaM, physical_mask)
         logger.info("analytical_m evaluated %d pairs", nagM)
         boundaries_anaM = extract_binary_boundary(x_values, y_values, nonclass_anaM)
+        analytical_maps.append(nonclass_anaM)
+        analytical_criteria.append("ana_m")
     else:
-        nonclass_anaM = np.zeros_like(nonclass_anaK, dtype=float)
-        nonclass_anaM[~physical_mask] = np.nan
+        nonclass_anaM = _empty_criterion_map((N1, N0), physical_mask)
+        ncaf_anaM = 0.0
+        nagM = 0
         boundaries_anaM = []
         logger.info("analytical_m skipped")
 
-    nonclass_ana = np.where(nonclass_anaK + nonclass_anaM > 0.5, 1.0, 0.0)
-    nonclass_ana[~physical_mask] = np.nan
+    if use_cm:
+        nonclass_cm_bool, ncaf_cm = analytical_c(
+            Pall_ana_eval,
+            indx=indx_ana,
+        )
+        nonclass_cm = _criterion_map(nonclass_cm_bool, physical_mask)
+        boundaries_cm = extract_binary_boundary(x_values, y_values, nonclass_cm)
+        analytical_maps.append(nonclass_cm)
+        analytical_criteria.append("counting_matrix")
+    else:
+        nonclass_cm = _empty_criterion_map((N1, N0), physical_mask)
+        ncaf_cm = 0.0
+        boundaries_cm = []
+        logger.info("counting matrix skipped")
+
+    nonclass_ana = _combine_analytical_maps(analytical_maps, physical_mask)
     boundaries_ana = extract_binary_boundary(x_values, y_values, nonclass_ana)
 
     if invalid_count:
@@ -247,21 +435,59 @@ def analyze_2d(
             stacklevel=2,
         )
 
-    save_arrays(
-        fi,
-        x_values,
-        y_values,
-        fixed_values,
-        np.array(boundaries, dtype=object),
-        np.array(boundaries_ana, dtype=object),
-        np.array(boundaries_anaK, dtype=object),
-        np.array(boundaries_anaM, dtype=object),
-        nonclass_num,
-        nonclass_ana,
-        allow_pickle=True,
-    )
+    result: ScanResult = {
+        "x": x_values,
+        "y": y_values,
+        "indx": indx,
+        "fixed": fixed_values,
+        "physical_mask": physical_mask,
+        "numerical": {
+            "nonclass": nonclass_num,
+            "witness": nonclass_c,
+            "lambda": all_lambda,
+            "boundaries": boundaries,
+        },
+        "ana_k": {
+            "enabled": bool(use_ana_k),
+            "nonclass": nonclass_anaK,
+            "ncaf": _ncaf(nonclass_anaK, physical_mask),
+            "boundaries": boundaries_anaK,
+        },
+        "ana_m": {
+            "enabled": bool(use_ana_m),
+            "nonclass": nonclass_anaM,
+            "ncaf": _ncaf(nonclass_anaM, physical_mask) if use_ana_m else ncaf_anaM,
+            "n_pairs": int(nagM),
+            "boundaries": boundaries_anaM,
+        },
+        "counting_matrix": {
+            "enabled": bool(use_cm),
+            "nonclass": nonclass_cm,
+            "ncaf": _ncaf(nonclass_cm, physical_mask) if use_cm else ncaf_cm,
+            "boundaries": boundaries_cm,
+        },
+        "analytical": {
+            "nonclass": nonclass_ana,
+            "boundaries": boundaries_ana,
+            "criteria": tuple(analytical_criteria),
+        },
+    }
 
-    return boundaries, boundaries_ana, boundaries_anaK, boundaries_anaM
+    result["boundaries"] = boundaries
+    result["boundaries_ana"] = boundaries_ana
+    result["boundaries_anaK"] = boundaries_anaK
+    result["boundaries_anaM"] = boundaries_anaM
+    result["boundaries_cm"] = boundaries_cm
+    result["nonclass_num"] = nonclass_num
+    result["nonclass_ana"] = nonclass_ana
+    result["nonclass_cm"] = nonclass_cm
+    result["ncaf_cm"] = result["counting_matrix"]["ncaf"]
+
+    if fi:
+        save_scan_result(fi, result)
+        result["archive_path"] = fi
+
+    return result
 
 
 def run2D(
@@ -273,14 +499,17 @@ def run2D(
     dPB: float = SCAN.dPB,
     uPB: float = SCAN.uPB,
     Prest: ArrayLike | None = None,
-    fi: str = "aux.npy",
+    fi: str = "aux.npz",
     tol: float = SCAN.tol,
     bias: float = SCAN.bias,
     max_iter: int = SCAN.max_iter,
     imtol: float = SCAN.imtol,
-    use_analytical_m: bool = True,
+    use_analytical_m: bool | None = None,
+    use_ana_k: bool = True,
+    use_ana_m: bool = True,
+    use_cm: bool = True,
     y_scan_direction: str = "increasing",
-) -> tuple[list, list, list, list]:
+) -> ScanResult:
     r"""Build and analyze a 2D probability-plane scan.
 
     The first two probability components are swept over ``[dPA, uPA]`` and
@@ -303,7 +532,7 @@ def run2D(
         Fixed values of the remaining probability components. Default
         ``[0.05, 0.05]``.
     fi : str, optional
-        Output ``.npy`` archive path. Default ``"aux.npy"``.
+        Output named NumPy archive path. Default ``"aux.npz"``.
     tol : float, optional
         LP convergence tolerance. Default ``1e-10``.
     bias : float, optional
@@ -313,10 +542,10 @@ def run2D(
     imtol : float, optional
         Imaginary-part tolerance for the inner maximisation. Default ``1e-8``.
     use_analytical_m : bool, optional
-        Whether to evaluate the majorization/generalized-Klyshko criterion.
-        Default ``True``. Set to ``False`` to skip the expensive ``analytical_m``
-        pass; then the combined analytical map contains only ``analytical_k``
-        and ``boundaries_anaM`` is empty.
+        Deprecated alias for ``use_ana_m``.
+    use_ana_k, use_ana_m, use_cm : bool, optional
+        Select which analytical criteria are included in the scan. The combined
+        analytical map is the union of all enabled analytical criteria.
     y_scan_direction : {"increasing", "decreasing"}, optional
         Direction used for the warm-started LP sweep over the second swept
         probability. The output grid remains ordered by increasing ``PB_all``.
@@ -324,14 +553,8 @@ def run2D(
 
     Returns
     -------
-    boundaries : list
-        LP-solver decision boundaries.
-    boundaries_ana : list
-        Combined analytical (K + M) boundaries.
-    boundaries_anaK : list
-        ``analytical_k`` boundaries.
-    boundaries_anaM : list
-        ``analytical_m`` (majorization) boundaries.
+    dict
+        Same structured result dictionary returned by :func:`analyze_2d`.
     """
     if indx is None:
         indx = np.array([0, 1, 2, 3], dtype=np.int16)
@@ -371,5 +594,8 @@ def run2D(
         max_iter=max_iter,
         imtol=imtol,
         use_analytical_m=use_analytical_m,
+        use_ana_k=use_ana_k,
+        use_ana_m=use_ana_m,
+        use_cm=use_cm,
         y_scan_direction=y_scan_direction,
     )

@@ -83,7 +83,7 @@ Runnable scripts:
 ```bash
 python examples/single_point_witness.py
 python examples/run_jcm_scan.py
-python scripts/run_scan.py --n0 256 --n1 256 --out results/scan.npy
+python scripts/run_scan.py --n0 256 --n1 256 --out results/scan.npz
 python scripts/run_scan.py --no-analytical-m --y-scan-direction decreasing
 ```
 
@@ -132,11 +132,13 @@ Demo notebooks:
 | `minimize_witness` / `scan_2d_minimize` | `solvers.minimize_solver` | Independent Nelder-Mead cross-check. |
 | `analytical_k` | `analytical.criteria_k` | Klyshko and generalized Klyshko criteria. |
 | `analytical_m` | `analytical.criteria_majorization` | Majorization-based criteria. |
+| `analytical_c` | `analytical.criteria_counting_matrix` | Photon-counting matrix criterion. |
 | `klyshko`, `taylored`, `log01rule`, `analcrit2D` | `analytical.criteria_classic` | Individual analytical witnesses and their union. |
 | `Pjaycum` | `analytical.jaynes_cummings` | Jaynes--Cummings occupation probabilities. |
 | `test_P_pba`, `pba_Pk_co` | `analytical.models` | Probabilistic boson-addition examples. |
-| `analyze_2d` | `comparison.scan_2d` | Analyze an existing probability grid from a model or CSV file. |
-| `run2D` | `comparison.scan_2d` | Compare numerical and analytical criteria in a probability plane. |
+| `analyze_2d` | `comparison.scan_2d` | Analyze an existing probability grid with LP, K, M, and/or counting-matrix criteria; returns a structured result dictionary. |
+| `run2D` | `comparison.scan_2d` | Convenience wrapper for probability-plane scans, returning the same structured result dictionary. |
+| `load_scan_result` / `save_scan_result` | `comparison.scan_2d` | Read and write named 2D scan archives. |
 | `extract_binary_boundary` | `visualization.boundaries` | Extract decision boundaries from binary maps. |
 
 ## Running the tests

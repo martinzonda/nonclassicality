@@ -3,7 +3,7 @@
 
 Builds a coarse Jaynes-Cummings probability grid over ``(tau, nu)`` and runs
 ``analyze_2d``, which classifies every grid point with the LP solver and the
-analytical criteria. The output is written to ``results/jcm_scan_demo.npy``.
+analytical criteria. The output is written to ``results/jcm_scan_demo.npz``.
 
 Usage
 -----
@@ -28,7 +28,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 
     os.makedirs(PATHS.results_dir, exist_ok=True)
-    out_path = os.path.join(PATHS.results_dir, "jcm_scan_demo.npy")
+    out_path = os.path.join(PATHS.results_dir, "jcm_scan_demo.npz")
 
     # Coarse grid for a quick demo (raise the sizes for production runs).
     tau = np.linspace(0.001, 10.001, 40)
@@ -41,22 +41,24 @@ def main() -> None:
     for j, n in enumerate(indx):
         Pall[..., j] = Pjaycum(n=int(n), nu=ynu, tau=xtau, pe=pe)
 
-    boundaries, boundaries_ana, boundaries_anaK, boundaries_anaM = analyze_2d(
+    result = analyze_2d(
         Pall,
         x_values=tau,
         y_values=nu,
         indx=indx,
         fixed_values=np.array([pe]),
         fi=out_path,
-        use_analytical_m=False,
+        use_ana_m=False,
+        use_cm=True,
     )
 
     print(f"Saved Jaynes-Cummings scan to {out_path}")
     print(f"  grid                       : {Pall.shape[:2]}")
-    print(f"  LP boundary curves         : {len(boundaries)}")
-    print(f"  analytical-K curves        : {len(boundaries_anaK)}")
-    print(f"  analytical-M curves        : {len(boundaries_anaM)}")
-    print(f"  combined analytical curves : {len(boundaries_ana)}")
+    print(f"  LP boundary curves         : {len(result['numerical']['boundaries'])}")
+    print(f"  analytical-K curves        : {len(result['ana_k']['boundaries'])}")
+    print(f"  analytical-M curves        : {len(result['ana_m']['boundaries'])}")
+    print(f"  counting-matrix curves     : {len(result['counting_matrix']['boundaries'])}")
+    print(f"  combined analytical curves : {len(result['analytical']['boundaries'])}")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,13 @@ import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
+from src.analytical import analytical_c as exported_analytical_c
+from src.analytical.criteria_counting_matrix import (
+    admissible_counting_sets,
+    analytical_c,
+    analytical_c_point,
+    counting_matrix,
+)
 from src.analytical.criteria_k import analytical_k, pN_0fun
 from src.analytical.criteria_majorization import (
     analytical_m,
@@ -59,6 +66,49 @@ def test_analytical_k_non_increasing_indx():
     fact = inverse_factorials(3)
     with pytest.raises(ValueError):
         analytical_k(np.ones((5, 5, 3)), fact, indx=np.array([0, 2, 1]))
+
+
+# ---------------------------------------------------------- analytical_c / counting matrix
+def test_analytical_c_is_exported():
+    assert exported_analytical_c is analytical_c
+
+
+def test_admissible_counting_sets_integer_and_half_integer():
+    sets = admissible_counting_sets(np.arange(5))
+    assert sets["integer"] == [(0.0, 1.0, 2.0)]
+    assert sets["half_integer"] == [(0.5, 1.5)]
+
+
+def test_counting_matrix_known_values():
+    C = counting_matrix([0.2, 0.3, 0.1], [0, 1, 2], [0, 1])
+    assert_allclose(C, [[0.2, 0.3], [0.3, 0.2]])
+
+
+def test_analytical_c_shapes_and_known_point():
+    Pall = np.zeros((1, 2, 3))
+    Pall[0, 0] = [0.0, 1.0, 0.0]   # |1>, flagged by I={0,1}
+    Pall[0, 1] = [1.0, 0.0, 0.0]   # vacuum, not flagged
+
+    nonclass, ncaf = analytical_c(Pall, indx=np.arange(3))
+    assert nonclass.shape == Pall.shape[:2]
+    assert nonclass.dtype == bool
+    assert nonclass[0, 0]
+    assert not nonclass[0, 1]
+    assert_allclose(ncaf, 0.5)
+
+
+def test_analytical_c_length_mismatch():
+    with pytest.raises(ValueError):
+        analytical_c(np.ones((5, 5, 4)), indx=np.array([0, 1, 2]))
+
+
+def test_analytical_c_point_details():
+    nonclass, details = analytical_c_point([0.0, 1.0, 0.0], [0, 1, 2], return_details=True)
+    assert nonclass
+    assert details["valid"]
+    assert details["family"] == "integer"
+    assert details["I"] == (0.0, 1.0)
+    assert_allclose(details["min_eig"], -1.0)
 
 
 # ----------------------------------------------------------- load_precomputed_pairs

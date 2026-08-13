@@ -6,13 +6,13 @@ import numpy as np
 import pytest
 
 import src.comparison.scan_2d as scan_2d
-from src.comparison.scan_2d import analyze_2d, run2D
+from src.comparison.scan_2d import analyze_2d, load_scan_result, run2D
 
 
 @pytest.fixture
 def small_scan(tmp_path):
     """Run a tiny scan and return its outputs plus the archive path."""
-    out = os.path.join(tmp_path, "scan.npy")
+    out = os.path.join(tmp_path, "scan.npz")
     result = run2D(
         N0=12, N1=12,
         indx=np.array([0, 1, 2, 3], dtype=np.int16),
@@ -23,31 +23,34 @@ def small_scan(tmp_path):
     return result, out
 
 
-def test_run2d_returns_four_boundary_lists(small_scan):
+def test_run2d_returns_structured_result(small_scan):
     result, _ = small_scan
-    assert len(result) == 4
-    for curves in result:
-        assert isinstance(curves, list)
+    assert set(["x", "y", "numerical", "ana_k", "ana_m", "counting_matrix", "analytical"]) <= set(result)
+    assert isinstance(result["numerical"]["boundaries"], list)
+    assert isinstance(result["ana_k"]["boundaries"], list)
+    assert isinstance(result["ana_m"]["boundaries"], list)
+    assert isinstance(result["counting_matrix"]["boundaries"], list)
+    assert result["analytical"]["criteria"] == ("ana_k", "ana_m", "counting_matrix")
 
 
-def test_run2d_writes_readable_archive(small_scan):
+def test_run2d_writes_readable_named_archive(small_scan):
     _, path = small_scan
     assert os.path.exists(path)
-    with open(path, "rb") as f:
-        PA_all = np.load(f)
-        PB_all = np.load(f)
-        Prest = np.load(f)
-        _ = np.load(f, allow_pickle=True)  # boundaries
-        _ = np.load(f, allow_pickle=True)
-        _ = np.load(f, allow_pickle=True)
-        _ = np.load(f, allow_pickle=True)
-        nonclass_num = np.load(f)
-        nonclass_ana = np.load(f)
-    assert PA_all.shape == (12,)
-    assert PB_all.shape == (12,)
-    assert Prest.shape == (2,)
-    assert nonclass_num.shape == (12, 12)
-    assert nonclass_ana.shape == (12, 12)
+    with np.load(path, allow_pickle=True) as archive:
+        assert "x" in archive.files
+        assert "numerical_nonclass" in archive.files
+        assert "ana_k_nonclass" in archive.files
+        assert "ana_m_nonclass" in archive.files
+        assert "counting_matrix_nonclass" in archive.files
+        assert "analytical_nonclass" in archive.files
+
+    loaded = load_scan_result(path)
+    assert loaded["x"].shape == (12,)
+    assert loaded["y"].shape == (12,)
+    assert loaded["fixed"].shape == (2,)
+    assert loaded["numerical"]["nonclass"].shape == (12, 12)
+    assert loaded["analytical"]["nonclass"].shape == (12, 12)
+    assert loaded["counting_matrix"]["nonclass"].shape == (12, 12)
 
 
 def test_run2d_numerical_superset_of_analytical(small_scan):
@@ -56,12 +59,9 @@ def test_run2d_numerical_superset_of_analytical(small_scan):
     The analytical criteria are sufficient conditions, so the (exact) LP
     classification should cover at least the analytical region.
     """
-    _, path = small_scan
-    with open(path, "rb") as f:
-        for _ in range(7):
-            np.load(f, allow_pickle=True)
-        nonclass_num = np.load(f)
-        nonclass_ana = np.load(f)
+    result, _ = small_scan
+    nonclass_num = result["numerical"]["nonclass"]
+    nonclass_ana = result["analytical"]["nonclass"]
     valid = np.isfinite(nonclass_num) & np.isfinite(nonclass_ana)
     # numerical >= analytical everywhere valid (no analytical-only false positives).
     assert np.all(nonclass_num[valid].astype(bool) | ~nonclass_ana[valid].astype(bool))
@@ -74,47 +74,98 @@ def test_run2d_can_skip_analytical_m(monkeypatch, tmp_path):
 
     monkeypatch.setattr(scan_2d, "analytical_m", fail_if_called)
 
-    out = os.path.join(tmp_path, "scan_no_m.npy")
-    boundaries, boundaries_ana, boundaries_anaK, boundaries_anaM = run2D(
+    out = os.path.join(tmp_path, "scan_no_m.npz")
+    result = run2D(
         N0=4, N1=4,
         indx=np.array([0, 1, 2, 3], dtype=np.int16),
         dPA=1e-10, uPA=0.8, dPB=1e-10, uPB=0.1,
         Prest=np.array([0.05, 0.05]),
         fi=out,
-        use_analytical_m=False,
+        use_ana_m=False,
     )
 
-    assert isinstance(boundaries, list)
-    assert isinstance(boundaries_ana, list)
-    assert isinstance(boundaries_anaK, list)
-    assert boundaries_anaM == []
+    assert isinstance(result["numerical"]["boundaries"], list)
+    assert isinstance(result["analytical"]["boundaries"], list)
+    assert isinstance(result["ana_k"]["boundaries"], list)
+    assert result["ana_m"]["boundaries"] == []
+    assert result["analytical"]["criteria"] == ("ana_k", "counting_matrix")
+
+
+def test_run2d_can_select_counting_matrix(monkeypatch, tmp_path):
+    """The counting-matrix pass should be optional and named in the result."""
+    calls = []
+
+    def fake_analytical_c(Pall, *args, **kwargs):
+        calls.append(np.asarray(Pall).shape)
+        return np.zeros(Pall.shape[:-1], dtype=bool), 0.0
+
+    monkeypatch.setattr(scan_2d, "analytical_c", fake_analytical_c)
+
+    out = os.path.join(tmp_path, "scan_cm.npz")
+    result = run2D(
+        N0=4, N1=4,
+        indx=np.array([0, 1, 2, 3], dtype=np.int16),
+        dPA=1e-10, uPA=0.8, dPB=1e-10, uPB=0.1,
+        Prest=np.array([0.05, 0.05]),
+        fi=out,
+        use_ana_k=False,
+        use_ana_m=False,
+        use_cm=True,
+    )
+
+    assert calls == [(4, 4, 4)]
+    assert result["ana_k"]["boundaries"] == []
+    assert result["ana_m"]["boundaries"] == []
+    assert result["counting_matrix"]["enabled"] is True
+    assert result["analytical"]["criteria"] == ("counting_matrix",)
+
+
+def test_run2d_can_skip_counting_matrix(monkeypatch, tmp_path):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("analytical_c should have been skipped")
+
+    monkeypatch.setattr(scan_2d, "analytical_c", fail_if_called)
+
+    result = run2D(
+        N0=4, N1=4,
+        indx=np.array([0, 1, 2, 3], dtype=np.int16),
+        dPA=1e-10, uPA=0.8, dPB=1e-10, uPB=0.1,
+        Prest=np.array([0.05, 0.05]),
+        fi=os.path.join(tmp_path, "scan_no_cm.npz"),
+        use_ana_m=False,
+        use_cm=False,
+    )
+
+    assert result["counting_matrix"]["boundaries"] == []
+    assert result["analytical"]["criteria"] == ("ana_k",)
 
 
 def test_run2d_allows_sweep_order_different_from_analytical_order(tmp_path):
     """The first two indx entries define the scan axes, not sort order."""
-    out = os.path.join(tmp_path, "scan_unsorted.npy")
+    out = os.path.join(tmp_path, "scan_unsorted.npz")
     result = run2D(
         N0=4, N1=4,
         indx=np.array([1, 3, 2, 5, 6], dtype=np.int16),
         dPA=1e-10, uPA=0.3, dPB=1e-10, uPB=0.04,
         Prest=np.array([0.05, 0.001, 0.001]),
         fi=out,
-        use_analytical_m=False,
+        use_ana_m=False,
     )
 
-    assert len(result) == 4
+    assert result["x"].shape == (4,)
+    assert result["y"].shape == (4,)
     assert os.path.exists(out)
 
 
 def test_run2d_rejects_wrong_prest_length(tmp_path):
-    out = os.path.join(tmp_path, "scan_bad_prest.npy")
+    out = os.path.join(tmp_path, "scan_bad_prest.npz")
     with pytest.raises(ValueError, match="Prest must have length"):
         run2D(
             N0=2, N1=2,
             indx=np.array([1, 3, 2, 5, 6], dtype=np.int16),
             Prest=np.array([0.05]),
             fi=out,
-            use_analytical_m=False,
+            use_ana_m=False,
         )
 
 
@@ -130,26 +181,24 @@ def test_analyze_2d_accepts_precomputed_probability_grid(tmp_path):
     Pall[..., 2] = 0.18 + 0.02 * xx
     Pall[..., 3] = 0.04 + 0.01 * yy
 
-    out = os.path.join(tmp_path, "model_scan.npy")
+    out = os.path.join(tmp_path, "model_scan.npz")
     result = analyze_2d(
         Pall,
         x_values,
         y_values,
         indx=np.array([0, 1, 2, 3]),
         fi=out,
-        use_analytical_m=False,
+        use_ana_m=False,
     )
 
-    assert len(result) == 4
+    assert result["x"].shape == (len(x_values),)
     assert os.path.exists(out)
-    with open(out, "rb") as f:
-        x_saved = np.load(f)
-        y_saved = np.load(f)
-        fixed_saved = np.load(f)
-        for _ in range(4):
-            np.load(f, allow_pickle=True)
-        nonclass_num = np.load(f)
-        nonclass_ana = np.load(f)
+    loaded = load_scan_result(out)
+    x_saved = loaded["x"]
+    y_saved = loaded["y"]
+    fixed_saved = loaded["fixed"]
+    nonclass_num = loaded["numerical"]["nonclass"]
+    nonclass_ana = loaded["analytical"]["nonclass"]
     assert np.array_equal(x_saved, x_values)
     assert np.array_equal(y_saved, y_values)
     assert fixed_saved.shape == (0,)
@@ -176,7 +225,7 @@ def test_analyze_2d_marks_nonphysical_points_nan(monkeypatch, tmp_path):
     monkeypatch.setattr(scan_2d, "max_inner_value", fake_max_inner_value)
     monkeypatch.setattr(scan_2d, "solve_semi_infinite_lp", fake_solve)
 
-    out = os.path.join(tmp_path, "nonphysical.npy")
+    out = os.path.join(tmp_path, "nonphysical.npz")
     with pytest.warns(RuntimeWarning, match="non-physical probability vector"):
         analyze_2d(
             Pall,
@@ -184,17 +233,15 @@ def test_analyze_2d_marks_nonphysical_points_nan(monkeypatch, tmp_path):
             y_values=np.arange(2),
             indx=np.array([0, 1, 2]),
             fi=out,
-            use_analytical_m=False,
+            use_ana_m=False,
         )
 
     assert len(calls) == 2
     assert all(np.all(p >= 0.0) and np.sum(p) <= 1.0 for p in calls)
 
-    with open(out, "rb") as f:
-        for _ in range(7):
-            np.load(f, allow_pickle=True)
-        nonclass_num = np.load(f)
-        nonclass_ana = np.load(f)
+    loaded = load_scan_result(out)
+    nonclass_num = loaded["numerical"]["nonclass"]
+    nonclass_ana = loaded["analytical"]["nonclass"]
 
     assert np.isnan(nonclass_num[0, 1])
     assert np.isnan(nonclass_num[1, 0])
@@ -218,11 +265,11 @@ def test_analyze_2d_allows_unsorted_indx_for_model_grid(tmp_path):
         x_values,
         y_values,
         indx=np.array([1, 3, 0, 2]),
-        fi=os.path.join(tmp_path, "unsorted_model_scan.npy"),
-        use_analytical_m=False,
+        fi=os.path.join(tmp_path, "unsorted_model_scan.npz"),
+        use_ana_m=False,
     )
 
-    assert len(result) == 4
+    assert result["indx"].tolist() == [1, 3, 0, 2]
 
 
 def test_analyze_2d_rejects_coordinate_length_mismatch(tmp_path):
@@ -232,8 +279,8 @@ def test_analyze_2d_rejects_coordinate_length_mismatch(tmp_path):
             Pall,
             x_values=np.arange(5),
             y_values=np.arange(3),
-            fi=os.path.join(tmp_path, "bad_coords.npy"),
-            use_analytical_m=False,
+            fi=os.path.join(tmp_path, "bad_coords.npz"),
+            use_ana_m=False,
         )
 
 
@@ -263,8 +310,8 @@ def test_analyze_2d_can_scan_y_in_decreasing_order(monkeypatch, tmp_path):
         x_values,
         y_values,
         indx=np.array([0, 1]),
-        fi=os.path.join(tmp_path, "decreasing_y.npy"),
-        use_analytical_m=False,
+        fi=os.path.join(tmp_path, "decreasing_y.npz"),
+        use_ana_m=False,
         y_scan_direction="decreasing",
     )
 
@@ -278,7 +325,7 @@ def test_analyze_2d_rejects_bad_y_scan_direction(tmp_path):
             Pall,
             x_values=np.arange(2),
             y_values=np.arange(2),
-            fi=os.path.join(tmp_path, "bad_direction.npy"),
-            use_analytical_m=False,
+            fi=os.path.join(tmp_path, "bad_direction.npz"),
+            use_ana_m=False,
             y_scan_direction="sideways",
         )
