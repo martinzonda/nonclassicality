@@ -1,6 +1,6 @@
 # Nonclassicality detection via linear programming
 
-Certify nonclassicality from finite sets of occupation probabilities using an exact linear-programming witness, and compare the results against a battery of analytical criteria (Klyshko, generalized Klyshko, and majorization witnesses).
+Certify nonclassicality from finite sets of occupation probabilities using an exact linear-programming witness, and compare the results against analytical criteria: Klyshko-type witnesses, majorization witnesses, and photon-counting matrix criteria.
 
 ## Problem statement
 
@@ -42,6 +42,46 @@ probability is negative or non-finite, or if the selected probabilities already
 sum to more than one, the point is treated as non-physical: single-point solvers
 return `num = NaN`, and 2D scans store `NaN` at that grid point and draw it as
 white in the demo maps.
+
+## Analytical criteria
+
+The LP solver is the primary numerical criterion. The package also implements
+several faster analytical checks that can be compared against the LP boundary
+on the same probability grid:
+
+- `analytical_k`: Klyshko-type criteria, including the two-probability W01
+  test and generalized Klyshko inequalities.
+- `analytical_m`: majorization-pair criteria. Precomputed pair archives for
+  small probability sets live in `data/all_genK/`.
+- `analytical_c`: photon-counting matrix criteria.
+
+The combined analytical map returned by `analyze_2d` and `run2D` is the union
+of all enabled analytical criteria. Individual maps and boundaries are also
+stored separately under `result["ana_k"]`, `result["ana_m"]`, and
+`result["counting_matrix"]`.
+
+### Photon-counting matrix criterion
+
+The counting-matrix implementation follows the ideal photoelectric-counting
+form of the observable-witness construction discussed in Sec. II of
+[Krishnaswamy, Jung, Ares, Gärttner, and Sperling, *Observable
+nonclassicality witnesses for multiplexed detection systems*,
+arXiv:2603.06237v1](https://arxiv.org/abs/2603.06237). For a selected set of
+available photon-number probabilities, it forms matrices
+
+$$
+C^{(I)} = \left[(k+l)! P_{k+l}\right]_{k,l\in I},
+$$
+
+where the admissible index set `I` may contain integers or half-integers, but
+every sum `k+l` must correspond to an available probability `P_{k+l}`. Classical
+states require every admissible matrix to be positive semidefinite. Therefore,
+a negative minimum eigenvalue of any such matrix certifies nonclassicality.
+
+In this repository, `admissible_counting_sets` builds the maximal admissible
+integer and half-integer index sets, `counting_matrix` constructs a single
+matrix, `analytical_c_point` evaluates one probability vector, and
+`analytical_c` evaluates the criterion over an arbitrary probability grid.
 
 ## Installation
 
@@ -93,12 +133,17 @@ Demo notebooks:
 - `notebooks/demo_2_analytical_vs_numerical.ipynb`: probability-plane scans comparing LP and analytical criteria.
 - `notebooks/demo_3_jaynes_cummings.ipynb`: Jaynes--Cummings nonclassicality maps.
 - `notebooks/demo_4_probabilistic_boson_addition.ipynb`: probabilistic boson addition, reversed y-scan direction, high-precision LP settings, probability-scale diagnostics, and CSV save/load.
+- `notebooks/demo_5_counting_matrix_vs_numerics.ipynb`: probability-plane comparison of LP, K, M, and photon-counting matrix boundaries, including reload-from-archive plotting.
+- `notebooks/demo_6_counting_matrix_jc.ipynb`: Jaynes--Cummings scans emphasizing photon-counting matrix criteria and their comparison with LP and other analytical boundaries.
 
 ## Directory structure
 
 ```text
 .
 ├── config.yaml             # optional local configuration overrides
+├── environment.yml         # conda environment specification
+├── pyproject.toml          # editable install metadata and optional extras
+├── requirements.txt        # pinned runtime dependencies
 ├── data/
 │   ├── README.md
 │   └── all_genK/           # tracked precomputed majorization-pair archives
@@ -109,13 +154,15 @@ Demo notebooks:
 │   ├── demo_1_lp_solver.ipynb
 │   ├── demo_2_analytical_vs_numerical.ipynb
 │   ├── demo_3_jaynes_cummings.ipynb
-│   └── demo_4_probabilistic_boson_addition.ipynb
+│   ├── demo_4_probabilistic_boson_addition.ipynb
+│   ├── demo_5_counting_matrix_vs_numerics.ipynb
+│   └── demo_6_counting_matrix_jc.ipynb
 ├── results/                # generated outputs; ignored except .gitkeep
 ├── scripts/
 │   └── run_scan.py         # command-line probability-plane scan
 ├── src/
 │   ├── config.py           # tolerances, bounds, seeds, paths
-│   ├── analytical/         # analytical criteria and demo probability models
+│   ├── analytical/         # K, M, counting-matrix criteria and demo models
 │   ├── comparison/         # 2D numerical-vs-analytical scan helpers
 │   ├── solvers/            # LP and Nelder-Mead solvers
 │   ├── utils/              # numerical and I/O helpers
@@ -132,8 +179,11 @@ Demo notebooks:
 | `minimize_witness` / `scan_2d_minimize` | `solvers.minimize_solver` | Independent Nelder-Mead cross-check. |
 | `analytical_k` | `analytical.criteria_k` | Klyshko and generalized Klyshko criteria. |
 | `analytical_m` | `analytical.criteria_majorization` | Majorization-based criteria. |
-| `analytical_c` | `analytical.criteria_counting_matrix` | Photon-counting matrix criterion. |
-| `klyshko`, `taylored`, `log01rule`, `analcrit2D` | `analytical.criteria_classic` | Individual analytical witnesses and their union. |
+| `analytical_c` | `analytical.criteria_counting_matrix` | Photon-counting matrix criterion over a probability grid. |
+| `analytical_c_point` | `analytical.criteria_counting_matrix` | Photon-counting matrix criterion for one probability vector, optionally with diagnostics. |
+| `admissible_counting_sets` | `analytical.criteria_counting_matrix` | Build maximal integer and half-integer index sets for counting matrices. |
+| `counting_matrix` | `analytical.criteria_counting_matrix` | Construct one matrix `C^(I)` from selected probabilities. |
+| `klyshko`, `taylored`, `log01rule`, `analcrit2D` | `analytical.criteria_classic` | Legacy individual analytical witnesses and their union. |
 | `Pjaycum` | `analytical.jaynes_cummings` | Jaynes--Cummings occupation probabilities. |
 | `test_P_pba`, `pba_Pk_co` | `analytical.models` | Probabilistic boson-addition examples. |
 | `analyze_2d` | `comparison.scan_2d` | Analyze an existing probability grid with LP, K, M, and/or counting-matrix criteria; returns a structured result dictionary. |
@@ -165,3 +215,7 @@ Exact tested versions are listed in `requirements.txt` and `environment.yml`.
 - **Random seeds** can be specified for stochastic scans through the `seed` argument.
 - **Thread limits** can be controlled via `config.apply_thread_limits()`.
 - **Data**: precomputed majorization archives in `data/all_genK/` are version-controlled inputs, while generated outputs are written to `results/`.
+
+## References
+
+- Suchitra Krishnaswamy, Martina Jung, Laura Ares, Martin Gärttner, and Jan Sperling, [*Observable nonclassicality witnesses for multiplexed detection systems*](https://arxiv.org/abs/2603.06237), arXiv:2603.06237v1, 2026.
