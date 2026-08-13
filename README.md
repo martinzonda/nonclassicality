@@ -22,9 +22,9 @@ Any incompatibility with this structure certifies nonclassicality.
 Nonclassicality is certified by a linear witness $\boldsymbol\lambda$ for which
 
 $$
-f(\boldsymbol\lambda)
+f(\bm \lambda)
 =
-\max\!\Bigl(0,\max_{\mu\ge0}\boldsymbol\lambda\!\cdot\!\mathbf p(\mu)\Bigr)
+\max\!\Bigl(0,\max_{\mu\ge0}\bm \lambda\!\cdot\!\mathbf p(\mu)\Bigr)
 -
 \boldsymbol\lambda\!\cdot\!\mathbf P
 $$
