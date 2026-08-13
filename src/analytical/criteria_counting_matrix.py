@@ -1,7 +1,7 @@
 r"""Photon-counting matrix nonclassicality criteria.
 
 This module implements the ideal photoelectric counting matrix from
-Krishnaswamy et al., Sec. II,
+Krishnaswamy et al., arXiv:2603.06237v1, Sec. II,
 
 .. math::
 
@@ -192,6 +192,10 @@ def analytical_c(
 ) -> tuple[NDArray[np.bool_], float] | tuple[NDArray[np.bool_], float, dict[str, Any]]:
     r"""Evaluate photon-counting matrix criteria over a probability grid.
 
+    This is the ideal photoelectric counting-matrix criterion from
+    Krishnaswamy et al., arXiv:2603.06237v1, applied to photon-number
+    probabilities.
+
     Parameters
     ----------
     Pall : array_like
@@ -273,7 +277,7 @@ def analytical_c_point(
     tol: float = 1e-12,
     return_details: bool = False,
 ) -> np.bool_ | tuple[np.bool_, dict[str, Any]]:
-    """Evaluate the counting-matrix criterion for one probability vector."""
+    """Evaluate the arXiv:2603.06237v1 counting-matrix criterion for one vector."""
     probs = np.asarray(probs, dtype=float).reshape(-1)
     indx = _validate_indx(indx, n_probs=len(probs))
     sets = admissible_counting_sets(indx)

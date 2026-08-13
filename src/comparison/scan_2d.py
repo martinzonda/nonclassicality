@@ -274,8 +274,9 @@ def analyze_2d(
     use_ana_k, use_ana_m, use_cm : bool, optional
         Select which analytical criteria to evaluate. ``use_ana_k`` evaluates
         :func:`analytical_k`, ``use_ana_m`` evaluates the majorization criterion
-        :func:`analytical_m`, and ``use_cm`` evaluates the photon-counting
-        matrix criterion :func:`analytical_c`. The combined analytical map is
+        :func:`analytical_m`, and ``use_cm`` evaluates the ideal photoelectric
+        photon-counting matrix criterion :func:`analytical_c` from
+        Krishnaswamy et al., arXiv:2603.06237v1. The combined analytical map is
         the union of all enabled analytical criteria.
     y_scan_direction : {"increasing", "decreasing"}, optional
         Direction used for the warm-started LP sweep along the first axis of
@@ -544,8 +545,10 @@ def run2D(
     use_analytical_m : bool, optional
         Deprecated alias for ``use_ana_m``.
     use_ana_k, use_ana_m, use_cm : bool, optional
-        Select which analytical criteria are included in the scan. The combined
-        analytical map is the union of all enabled analytical criteria.
+        Select which analytical criteria are included in the scan. ``use_cm``
+        enables the ideal photoelectric photon-counting matrix criterion from
+        Krishnaswamy et al., arXiv:2603.06237v1. The combined analytical map is
+        the union of all enabled analytical criteria.
     y_scan_direction : {"increasing", "decreasing"}, optional
         Direction used for the warm-started LP sweep over the second swept
         probability. The output grid remains ordered by increasing ``PB_all``.

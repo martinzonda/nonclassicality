@@ -1,7 +1,8 @@
 """Analytical nonclassicality criteria and maintained demo models.
 
 - ``criteria_k``            : analytical_k (W01, 3-index + generalized Klyshko)
-- ``criteria_counting_matrix`` : analytical_c (photon-counting matrices)
+- ``criteria_counting_matrix`` : analytical_c (ideal photoelectric
+  counting matrices from Krishnaswamy et al., arXiv:2603.06237v1)
 - ``criteria_majorization`` : analytical_m and majorization-pair machinery
 - ``criteria_classic``      : klyshko, taylored, log01rule, generalized_klyshko*
 - ``jaynes_cummings``       : Pjaycum (QuTiP-free)
