@@ -22,12 +22,12 @@ Any incompatibility with this structure certifies nonclassicality.
 Nonclassicality is certified by a linear witness $\boldsymbol\lambda$ for which
 
 $$
-f(\bm{\lambda}) =
-\max\!\Bigl(0,\max_{\mu\ge0}\bm{\lambda}\!\cdot\!\mathbf p(\mu)\Bigr)
+f({\boldsymbol \lambda}) =
+\max\!\Bigl(0,\max_{\mu\ge0}{\boldsymbol\lambda}\!\cdot\!\mathbf p(\mu)\Bigr)
 {\boldsymbol\lambda}\!\cdot\!\mathbf P
 $$
 
-becomes negative. Minimizing $f$ over $\boldsymbol\lambda$ (with bounded components) leads to a semi-infinite linear program: infinitely many constraints, one for each $\mu\ge0$. The problem is solved using a cutting-plane (exchange) method, which repeatedly solves a finite master linear program and adds the most violated constraint until convergence.
+becomes negative. Minimizing $f$ over ${\boldsymbol\lambda}$ (with bounded components) leads to a semi-infinite linear program: infinitely many constraints, one for each $\mu\ge0$. The problem is solved using a cutting-plane (exchange) method, which repeatedly solves a finite master linear program and adds the most violated constraint until convergence.
 
 The reported quantity
 
