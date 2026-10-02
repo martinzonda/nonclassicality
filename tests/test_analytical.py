@@ -111,6 +111,21 @@ def test_analytical_c_point_details():
     assert_allclose(details["min_eig"], -1.0)
 
 
+def test_analytical_c_thermal_balance_large_cutoff_is_stable():
+    pe = 0.4
+    nu_e = pe / (1.0 - 2.0 * pe)
+    tau = np.array([0.001, 2.001, 5.001, 10.001])
+    indx = np.arange(30)
+    probs = np.stack(
+        [Pjaycum(n=int(n), nu=nu_e, tau=tau, pe=pe) for n in indx],
+        axis=-1,
+    ).reshape(len(tau), 1, len(indx))
+
+    nonclass, _, details = analytical_c(probs, indx=indx, return_details=True)
+    assert not np.any(nonclass)
+    assert np.all(details["min_eig"] > -1e-12)
+
+
 # ----------------------------------------------------------- load_precomputed_pairs
 @pytest.mark.parametrize("indx,expected_none", [
     (np.array([0, 1, 2]), True),       # N_P = 3 -> file_idx = -1, no file

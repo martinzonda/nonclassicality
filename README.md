@@ -1,6 +1,6 @@
 # Nonclassicality detection via linear programming
 
-Certify nonclassicality from finite sets of occupation probabilities using an exact linear-programming witness, and compare the results against analytical criteria: Klyshko-type witnesses, majorization witnesses, and photon-counting matrix criteria.
+Certify nonclassicality from finite sets of occupation probabilities using a semi-infinite linear-programming witness, and compare the results against analytical criteria: Klyshko-type witnesses, majorization witnesses, and photon-counting matrix criteria.
 
 ## Problem statement
 
@@ -24,10 +24,11 @@ Nonclassicality is certified by a linear witness $\boldsymbol\lambda$ for which
 $$
 f({\boldsymbol \lambda}) =
 \max\!\Bigl(0,\max_{\mu\ge0}{\boldsymbol\lambda}\!\cdot\!\mathbf p(\mu)\Bigr)
+-
 {\boldsymbol\lambda}\!\cdot\!\mathbf P
 $$
 
-becomes negative. Minimizing $f$ over ${\boldsymbol\lambda}$ (with bounded components) leads to a semi-infinite linear program: infinitely many constraints, one for each $\mu\ge0$. The problem is solved using a cutting-plane (exchange) method, which repeatedly solves a finite master linear program and adds the most violated constraint until convergence.
+becomes negative. The implementation evaluates this witness in floating-point arithmetic with configurable convergence and decision tolerances. Minimizing $f$ over ${\boldsymbol\lambda}$ (with bounded components) leads to a semi-infinite linear program: infinitely many constraints, one for each $\mu\ge0$. The problem is solved using a cutting-plane (exchange) method, which repeatedly solves a finite master linear program and adds the most violated constraint until convergence.
 
 The reported quantity
 
@@ -78,6 +79,8 @@ every sum `k+l` must correspond to an available probability `P_{k+l}`. Classical
 states require every admissible matrix to be positive semidefinite. Therefore,
 a negative minimum eigenvalue of any such matrix certifies nonclassicality.
 
+For numerical stability, matrices with strictly positive diagonals are tested after diagonal congruence scaling to unit diagonal. The default detection rule is `min_eig < -1e-12`; `min_eig` diagnostics refer to the scaled matrix, while `matrix` contains the original matrix. If a diagonal entry is zero, the implementation tests the unscaled matrix. This scaling preserves positive semidefiniteness in exact arithmetic.
+
 In this repository, `admissible_counting_sets` builds the maximal admissible
 integer and half-integer index sets, `counting_matrix` constructs a single
 matrix, `analytical_c_point` evaluates one probability vector, and
@@ -95,12 +98,12 @@ python -m pip install -e ".[dev,physics]"
 # or pinned runtime deps only
 python -m pip install -r requirements.txt
 
-# or conda (full reproducibility)
+# or conda (Python 3.12 with pinned core dependencies)
 conda env create -f environment.yml
 conda activate nonclassicality-lp
 ```
 
-Python ≥ 3.10 is required. **QuTiP is optional** — only the coherent-state probabilistic-boson-addition helper used in `notebooks/demo_4_probabilistic_boson_addition.ipynb` requires it. All solvers, analytical criteria, Jaynes--Cummings examples, and the closed-form one-boson PBA demo work without QuTiP.
+Python ≥ 3.10 is required by the package metadata; the pinned environment uses Python 3.12. **QuTiP is optional** — only the coherent-state probabilistic-boson-addition helper used in `notebooks/demo_4_probabilistic_boson_addition.ipynb` requires it. All solvers, analytical criteria, Jaynes--Cummings examples, and the closed-form one-boson PBA demo work without QuTiP.
 
 ## Quick start
 
@@ -129,12 +132,17 @@ python scripts/run_scan.py --no-analytical-m --y-scan-direction decreasing
 
 Demo notebooks:
 
-- `notebooks/demo_1_lp_solver.ipynb`: single-point LP witness, Nelder-Mead comparison, and a single Jaynes--Cummings point.
-- `notebooks/demo_2_analytical_vs_numerical.ipynb`: probability-plane scans comparing LP and analytical criteria.
-- `notebooks/demo_3_jaynes_cummings.ipynb`: Jaynes--Cummings nonclassicality maps.
-- `notebooks/demo_4_probabilistic_boson_addition.ipynb`: probabilistic boson addition, reversed y-scan direction, high-precision LP settings, probability-scale diagnostics, and CSV save/load.
-- `notebooks/demo_5_counting_matrix_vs_numerics.ipynb`: probability-plane comparison of LP, K, M, and photon-counting matrix boundaries, including reload-from-archive plotting.
-- `notebooks/demo_6_counting_matrix_jc.ipynb`: Jaynes--Cummings scans emphasizing photon-counting matrix criteria and their comparison with LP and other analytical boundaries.
+- [demo_1_lp_solver](notebooks/demo_1_lp_solver.ipynb): Single-point LP witnesses, a Nelder–Mead cross-check, and a Jaynes–Cummings example.
+- [demo_2_analytical_vs_numerical](notebooks/demo_2_analytical_vs_numerical.ipynb): Probability-plane scans comparing LP with analytical K and M criteria.
+- [demo_3_jaynes_cummings](notebooks/demo_3_jaynes_cummings.ipynb): Jaynes–Cummings maps with K/M comparisons and plotting of multiple boundary branches.
+- [demo_4_probabilistic_boson_addition](notebooks/demo_4_probabilistic_boson_addition.ipynb): Probabilistic boson addition, reversed scan direction, tighter LP tolerances, probability-scale diagnostics, and CSV save/load; the two-boson example uses optional QuTiP.
+- [demo_5_counting_matrix_vs_numerics](notebooks/demo_5_counting_matrix_vs_numerics.ipynb): Probability-plane comparisons of LP, K, M, and counting-matrix criteria, including nonconsecutive indices and saved-scan plotting.
+- [demo_6_counting_matrix_jc](notebooks/demo_6_counting_matrix_jc.ipynb): Jaynes–Cummings counting-matrix comparisons for several photon cutoffs, plus a selected-index K/M/CM comparison.
+- [demo_7_vicinity_of_thermal_balance](notebooks/demo_7_vicinity_of_thermal_balance.ipynb): Bisection near Jaynes–Cummings thermal balance, comparing K, counting matrices, and LP; cutoff comparisons and logarithmic-distance plots.
+
+Run notebooks with `notebooks/` as the working directory. Generated archives live in `results/` and are not included in a fresh checkout; execute the corresponding calculation cells before reload cells. Demos 4–6 include large grids, so reduce their grid sizes for a quick first run. Demo 7 assumes one transition per bracket and does not search for disconnected nonclassical bands.
+
+The tracked majorization archives cover consecutive indices `0, ..., N_P-1` for `N_P=4` through `8`. The `N_P=9` archive is optional and ignored by Git. Missing archives and nonconsecutive indices trigger pair generation; disable `use_ana_m` for expensive cases.
 
 ## Directory structure
 
@@ -156,7 +164,8 @@ Demo notebooks:
 │   ├── demo_3_jaynes_cummings.ipynb
 │   ├── demo_4_probabilistic_boson_addition.ipynb
 │   ├── demo_5_counting_matrix_vs_numerics.ipynb
-│   └── demo_6_counting_matrix_jc.ipynb
+│   ├── demo_6_counting_matrix_jc.ipynb
+│   └── demo_7_vicinity_of_thermal_balance.ipynb
 ├── results/                # generated outputs; ignored except .gitkeep
 ├── scripts/
 │   └── run_scan.py         # command-line probability-plane scan
@@ -206,7 +215,7 @@ The test suite covers the LP solver, the inner maximization routine, agreement b
 - **Optional** (`[physics]`): qutip (only for the coherent-state PBA helper)
 - **Development** (`[dev]`): pytest, ipykernel, nbconvert
 
-Exact tested versions are listed in `requirements.txt` and `environment.yml`.
+Pinned core dependency versions are listed in `requirements.txt` and `environment.yml`.
 
 ## Reproducibility
 

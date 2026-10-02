@@ -143,6 +143,23 @@ def counting_matrix(
     return C
 
 
+def _min_eig_congruence_scaled(C: NDArray[np.float64]) -> float:
+    """Minimum eigenvalue after diagonal congruence scaling.
+
+    The raw counting matrices contain factorially growing entries and become
+    very ill-conditioned for larger photon cutoffs. Scaling by the inverse
+    square root of the diagonal preserves positive semidefiniteness in exact
+    arithmetic and gives a much more stable numerical PSD test.
+    """
+    diag = np.diag(C)
+    if np.any(diag <= 0.0) or not np.all(np.isfinite(diag)):
+        return float(np.linalg.eigvalsh(C)[0])
+
+    scale = 1.0 / np.sqrt(diag)
+    C_scaled = (scale[:, None] * C) * scale[None, :]
+    return float(np.linalg.eigvalsh(C_scaled)[0])
+
+
 def _single_point_counting_result(
     probs: NDArray[np.float64],
     indx: NDArray[np.int_],
@@ -161,7 +178,7 @@ def _single_point_counting_result(
     for family, all_sets in sets.items():
         for I in all_sets:
             C = counting_matrix(probs, indx, I)
-            eigmin = np.linalg.eigvalsh(C)[0]
+            eigmin = _min_eig_congruence_scaled(C)
 
             if eigmin < best_eig:
                 best_eig = float(eigmin)
@@ -206,7 +223,9 @@ def analytical_c(
         ``[0, 1, ..., Np - 1]``.
     tol : float, optional
         Numerical tolerance. A point is nonclassical when
-        ``lambda_min(C) < -tol`` for at least one admissible counting matrix.
+        ``min_eig < -tol`` for at least one admissible counting matrix.
+        For a strictly positive diagonal, ``min_eig`` is evaluated after
+        congruence scaling to unit diagonal; otherwise the raw matrix is used.
     return_details : bool, optional
         If ``True``, also return strongest-violation diagnostics for every
         point. The detail arrays have shape ``Pall.shape[:-1]``.
@@ -218,7 +237,8 @@ def analytical_c(
     ncaf : float
         Fraction of nonclassical grid points.
     details : dict, optional
-        Returned when ``return_details=True``.
+        Returned when ``return_details=True``. ``min_eig`` is the tested
+        (usually scaled) eigenvalue; ``matrix`` is the original, unscaled matrix.
     """
     Pall = np.asarray(Pall, dtype=float)
     if Pall.ndim < 2:
@@ -277,7 +297,10 @@ def analytical_c_point(
     tol: float = 1e-12,
     return_details: bool = False,
 ) -> np.bool_ | tuple[np.bool_, dict[str, Any]]:
-    """Evaluate the arXiv:2603.06237v1 counting-matrix criterion for one vector."""
+    """Evaluate the arXiv:2603.06237v1 counting-matrix criterion for one vector.
+
+    Tolerance and diagnostic scaling follow :func:`analytical_c`.
+    """
     probs = np.asarray(probs, dtype=float).reshape(-1)
     indx = _validate_indx(indx, n_probs=len(probs))
     sets = admissible_counting_sets(indx)
