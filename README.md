@@ -2,6 +2,37 @@
 
 Certify nonclassicality from finite sets of occupation probabilities using a semi-infinite linear-programming witness, and compare the results against analytical criteria: Klyshko-type witnesses, majorization witnesses, and photon-counting matrix criteria.
 
+
+## Citation
+
+This repository accompanies the paper:
+
+**M. Žonda, P. Baláž, L. Lachman, D. W. Moore, T. Novotný, and R. Filip**,  
+*Nonclassicality from Incomplete Fock-State Statistics*,  
+[arXiv:2610.32908](https://arxiv.org/abs/2610.32908) (2026).
+
+If you use this code or the methods implemented here in your research, we kindly ask you to cite the paper above.
+
+### BibTeX
+
+```bibtex
+@misc{Zonda2026Nonclassicality,
+    author        = {{\v Z}onda, Martin and
+                     Bal{\'a}{\v z}, Pavel and
+                     Lachman, Luk{\'a}{\v s} and
+                     Moore, Darren W. and
+                     Novotn{\'y}, Tom{\'a}{\v s} and
+                     Filip, Radim},
+    title         = {Nonclassicality from Incomplete Fock-State Statistics},
+    year          = {2026},
+    eprint        = {2610.32908},
+    archivePrefix = {arXiv},
+    primaryClass  = {quant-ph},
+    doi           = {10.48550/arXiv.2610.32908},
+    url           = {https://arxiv.org/abs/2610.32908}
+}
+```
+
 ## Problem statement
 
 Given a finite set of occupation probabilities, the code tests whether they are compatible with a classical state, i.e., with a mixture of Poisson distributions,
@@ -23,9 +54,8 @@ Nonclassicality is certified by a linear witness $\boldsymbol\lambda$ for which
 
 $$
 f({\boldsymbol \lambda}) =
-\max\!\Bigl(0,\max_{\mu\ge0}{\boldsymbol\lambda}\!\cdot\!\mathbf p(\mu)\Bigr)
--
-{\boldsymbol\lambda}\!\cdot\!\mathbf P
+\max \Bigl(0,\max_{\mu\ge0}{\boldsymbol\lambda} \cdot \mathbf p(\mu)\Bigr)-
+{\boldsymbol\lambda}\cdot\mathbf P
 $$
 
 becomes negative. The implementation evaluates this witness in floating-point arithmetic with configurable convergence and decision tolerances. Minimizing $f$ over ${\boldsymbol\lambda}$ (with bounded components) leads to a semi-infinite linear program: infinitely many constraints, one for each $\mu\ge0$. The problem is solved using a cutting-plane (exchange) method, which repeatedly solves a finite master linear program and adds the most violated constraint until convergence.
