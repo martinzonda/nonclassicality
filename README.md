@@ -2,6 +2,11 @@
 
 Certify nonclassicality from finite sets of occupation probabilities using a semi-infinite linear-programming witness, and compare the results against analytical criteria: Klyshko-type witnesses, majorization witnesses, and photon-counting matrix criteria.
 
+## License
+
+This project is distributed under the [MIT License](LICENSE).
+
+If you use this software in academic research, we kindly ask you to cite the accompanying paper.
 
 ## Citation
 
@@ -10,6 +15,7 @@ This repository accompanies the paper:
 **M. Žonda, P. Baláž, L. Lachman, D. W. Moore, T. Novotný, and R. Filip**,  
 *Nonclassicality from Incomplete Fock-State Statistics*,  
 [arXiv:2610.32908](https://arxiv.org/abs/2610.32908) (2026).
+
 
 If you use this code or the methods implemented here in your research, we kindly ask you to cite the paper above.
 
